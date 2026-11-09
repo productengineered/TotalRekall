@@ -1,0 +1,3 @@
+// Committed. Pulls in the optional, untracked Local.xcconfig (see Local.xcconfig.example).
+// The leading "?" makes the include optional: builds work without the file.
+#include? "Local.xcconfig"

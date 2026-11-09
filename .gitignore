@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Xcode
+xcuserdata/
+DerivedData/
+build/
+.build/
+
+# DMG build output (scripts/make-dmg.sh)
+dist/
+
+# Local signing configuration (team ID); see app/Config/Local.xcconfig.example
+Local.xcconfig
+Secrets.xcconfig
+!*.xcconfig.example
+
+# Secrets and signing material
+.env*
+*.p8
+*.p12
+*.mobileprovision
+*.provisionprofile
+
+# Diagnostics written into fixture app-support folders by debug runs
+app/Fixtures/AppSupport/*/diagnostics/
+
+# Never published: AI assistant config and the export tool's folder marker
+.claude/
+CLAUDE.md
+.export-public

@@ -1,0 +1,260 @@
+{
+ "windows": [
+  {
+   "appName": "Fixture App 19",
+   "axVisible": true,
+   "bundleID": "com.example.fixture.app19",
+   "frame": {
+    "height": 333,
+    "width": 692,
+    "x": 135,
+    "y": 674
+   },
+   "panelSerial": "FAKESERIAL0002",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 145940,
+   "windowTitle": "Window 145940"
+  },
+  {
+   "appName": "Fixture App 19",
+   "axVisible": false,
+   "bundleID": "com.example.fixture.app19",
+   "frame": {
+    "height": 333,
+    "width": 692,
+    "x": 1678,
+    "y": 202
+   },
+   "panelSerial": "FAKESERIAL0002",
+   "spaceOrdinal": 4,
+   "sticky": false,
+   "windowID": 145835,
+   "windowTitle": "Window 145835"
+  },
+  {
+   "appName": "Fixture App 19",
+   "axVisible": false,
+   "bundleID": "com.example.fixture.app19",
+   "frame": {
+    "height": 333,
+    "width": 692,
+    "x": 817,
+    "y": 836
+   },
+   "panelSerial": "FAKESERIAL0002",
+   "spaceOrdinal": 3,
+   "sticky": false,
+   "windowID": 145833,
+   "windowTitle": "Window 145833"
+  },
+  {
+   "appName": "Fixture App 19",
+   "axVisible": false,
+   "bundleID": "com.example.fixture.app19",
+   "frame": {
+    "height": 333,
+    "width": 692,
+    "x": 423,
+    "y": 483
+   },
+   "panelSerial": "FAKESERIAL0002",
+   "spaceOrdinal": 2,
+   "sticky": false,
+   "windowID": 145831,
+   "windowTitle": "Window 145831"
+  },
+  {
+   "appName": "Fixture App 20",
+   "axVisible": true,
+   "bundleID": "com.example.fixture.app20",
+   "frame": {
+    "height": 1058,
+    "width": 1577,
+    "x": 363,
+    "y": 50
+   },
+   "panelSerial": "FAKESERIAL0002",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 145600,
+   "windowTitle": "Window 145600"
+  },
+  {
+   "appName": "Fixture App 21",
+   "axVisible": true,
+   "bundleID": "com.example.fixture.app21",
+   "frame": {
+    "height": 1095,
+    "width": 1885,
+    "x": -2078,
+    "y": 189
+   },
+   "panelSerial": "FAKESERIAL0001",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 144005,
+   "windowTitle": "Window 144005"
+  },
+  {
+   "appName": "Terminal",
+   "axVisible": true,
+   "bundleID": "com.apple.Terminal",
+   "frame": {
+    "height": 1267,
+    "width": 825,
+    "x": 11,
+    "y": 31
+   },
+   "panelSerial": "FAKESERIAL0002",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 143835,
+   "windowTitle": "Window 143835"
+  },
+  {
+   "appName": "Fixture App 22",
+   "axVisible": true,
+   "bundleID": "com.example.fixture.app22",
+   "frame": {
+    "height": 653,
+    "width": 817,
+    "x": 2756,
+    "y": 727
+   },
+   "panelSerial": "builtin",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 141298,
+   "windowTitle": "Window 141298"
+  },
+  {
+   "appName": "Fixture App 23",
+   "axVisible": true,
+   "bundleID": "com.example.fixture.app23",
+   "frame": {
+    "height": 949,
+    "width": 2023,
+    "x": -2404,
+    "y": 333
+   },
+   "panelSerial": "FAKESERIAL0001",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 138216,
+   "windowTitle": "Window 138216"
+  },
+  {
+   "appName": "Fixture App 24",
+   "axVisible": true,
+   "bundleID": "com.example.fixture.app24",
+   "frame": {
+    "height": 558,
+    "width": 765,
+    "x": 2614,
+    "y": 816
+   },
+   "panelSerial": "builtin",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 141400,
+   "windowTitle": "Window 141400"
+  },
+  {
+   "appName": "Fixture App 21",
+   "axVisible": true,
+   "bundleID": "com.example.fixture.app21",
+   "frame": {
+    "height": 375,
+    "width": 1912,
+    "x": -1912,
+    "y": 56
+   },
+   "panelSerial": "FAKESERIAL0001",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 137895,
+   "windowTitle": "Window 137895"
+  },
+  {
+   "appName": "Fixture App 25",
+   "axVisible": false,
+   "bundleID": "com.example.fixture.app25",
+   "frame": {
+    "height": 833,
+    "width": 1907,
+    "x": 155,
+    "y": 363
+   },
+   "panelSerial": "FAKESERIAL0002",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 137720,
+   "windowTitle": "Window 137720"
+  },
+  {
+   "appName": "Fixture App 26",
+   "axVisible": false,
+   "bundleID": "com.example.fixture.app26",
+   "frame": {
+    "height": 665,
+    "width": 768,
+    "x": 1792,
+    "y": 30
+   },
+   "panelSerial": null,
+   "spaceOrdinal": null,
+   "sticky": true,
+   "windowID": 141506,
+   "windowTitle": "Window 141506"
+  },
+  {
+   "appName": "Fixture App 19",
+   "axVisible": false,
+   "bundleID": "com.example.fixture.app19",
+   "frame": {
+    "height": 579,
+    "width": 534,
+    "x": 57,
+    "y": 557
+   },
+   "panelSerial": "FAKESERIAL0002",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 52693,
+   "windowTitle": "Window 52693"
+  },
+  {
+   "appName": "Fixture App 27",
+   "axVisible": false,
+   "bundleID": "com.example.fixture.app27",
+   "frame": {
+    "height": 897,
+    "width": 1368,
+    "x": 386,
+    "y": 358
+   },
+   "panelSerial": "FAKESERIAL0002",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 139709,
+   "windowTitle": "Window 139709"
+  },
+  {
+   "appName": "Fixture App 28",
+   "axVisible": false,
+   "bundleID": "com.example.fixture.app28",
+   "frame": {
+    "height": 888,
+    "width": 1211,
+    "x": -2020,
+    "y": 187
+   },
+   "panelSerial": "FAKESERIAL0001",
+   "spaceOrdinal": 1,
+   "sticky": false,
+   "windowID": 283,
+   "windowTitle": "Window 283"
+  }
+ ]
+}

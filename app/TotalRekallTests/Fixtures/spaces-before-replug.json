@@ -1,0 +1,55 @@
+{
+ "displays": [
+  {
+   "panelSerial": "builtin",
+   "spaces": [
+    {
+     "id64": 4453,
+     "ordinal": 1,
+     "type": 0,
+     "uuid": "EC7B2B72-B8BB-4665-BE19-6C56D63E3017"
+    }
+   ]
+  },
+  {
+   "panelSerial": "FAKESERIAL0001",
+   "spaces": [
+    {
+     "id64": 4456,
+     "ordinal": 1,
+     "type": 0,
+     "uuid": "06BF63F3-E0FD-4CFA-B207-35E5BE7C8A92"
+    }
+   ]
+  },
+  {
+   "panelSerial": "FAKESERIAL0002",
+   "spaces": [
+    {
+     "id64": 6,
+     "ordinal": 1,
+     "type": 0,
+     "uuid": "0C93B722-3962-4DA0-84D3-C8631D7BF9E0"
+    },
+    {
+     "id64": 9,
+     "ordinal": 2,
+     "type": 0,
+     "uuid": "E2524700-5694-4A2C-B78E-A72AB95D67D4"
+    },
+    {
+     "id64": 8,
+     "ordinal": 3,
+     "type": 0,
+     "uuid": "4F924BDA-C39B-4483-B4D6-5E78B09CE6D4"
+    },
+    {
+     "id64": 7,
+     "ordinal": 4,
+     "type": 0,
+     "uuid": "DCC76570-7A2F-4028-9A02-A190EACA4FAB"
+    }
+   ]
+  }
+ ]
+}

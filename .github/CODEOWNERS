@@ -1,0 +1,21 @@
+# .github/CODEOWNERS -- paths where a mistake changes what the app is allowed to do, what it
+# stores, or what CI enforces. Code-owner review is requested for changes to them.
+#
+# There is no catch-all `*` line on purpose: owning everything would make these paths
+# indistinguishable from the rest of the tree, which is what this file exists to say.
+
+# what the app may do
+*.entitlements            @productengineered
+Info.plist                @productengineered
+
+# what the app stores
+*.xcdatamodeld/           @productengineered
+
+# build settings and signing configuration
+*.xcconfig                @productengineered
+project.pbxproj           @productengineered
+
+# CI -- the checks are versioned with the code they check
+/.github/                 @productengineered
+/.gitleaks.toml           @productengineered
+/.gitleaksignore          @productengineered

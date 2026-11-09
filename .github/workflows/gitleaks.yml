@@ -1,0 +1,53 @@
+# gitleaks.yml -- secret scanning on every pull request and push to main. The job's `name:`
+# ("Secret Scanning") is the status-check context branch protection requires.
+#
+# Rules this file keeps:
+#   - actions pinned by commit SHA (a moved tag cannot swap code under the job's token)
+#   - the token is read-only and checkout does not persist it
+#   - gitleaks is a pinned release, checksum-verified against the release's own checksums file
+#     (no gitleaks-action: it needs a paid license key on organization accounts)
+#   - ubuntu runner, pinned image
+#   - the WHOLE history is scanned, with the repo's .gitleaks.toml
+#
+# Bumping GITLEAKS_VERSION: pick a release at least 7 days old, and run
+# `gitleaks git --redact .` locally on the same version first.
+name: Secret Scanning
+
+# Quoted: a bare `on` is a YAML 1.1 boolean to every parser but GitHub's.
+"on":
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitleaks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_VERSION: 8.30.1
+
+jobs:
+  gitleaks:
+    name: Secret Scanning
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # the whole history, not just the tip
+      - name: Install gitleaks (pinned release, checksum-verified)
+        run: |
+          set -euo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfLO "$base/$tarball"
+          curl -sSfL "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt" | grep " ${tarball}\$" | sha256sum -c -
+          tar -xzf "$tarball" gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+      - name: Scan the whole history
+        run: gitleaks git --redact --no-banner --verbose .

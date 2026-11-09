@@ -1,0 +1,49 @@
+# .coderabbit.yaml -- CodeRabbit review settings.
+#
+# path_filters is a BLOCKLIST: everything not listed is reviewed. CI workflow YAML stays in scope on
+# purpose: workflow files are a real injection and secret-leak surface.
+#
+# CodeRabbit skips a review when a PR changes more files than its limit, and still reports its
+# check as SUCCESS. Prefer splitting a large PR over adding exclusions; never exclude app source
+# or tests to get under the cap.
+#
+# The CodeRabbit GitHub App must be installed on the repository for any of this to run.
+
+language: en-US
+
+reviews:
+  auto_review:
+    enabled: true
+    drafts: false
+  poem: false
+
+  path_instructions:
+    - path: "**/*.swift"
+      instructions: |
+        Swift source. Review for: MVVM boundaries (View -> ViewModel -> Model/Service),
+        @Observable (not ObservableObject), async/await (not Combine), no force unwraps in
+        production code, real error handling, accessibility labels on interactive elements,
+        Views that do not import Services directly, and Keychain (never UserDefaults) for
+        credentials.
+
+    - path: "**/*Tests/**/*.swift"
+      instructions: |
+        XCTest / Swift Testing. Review for: assertions that match the claim, protocol-based mocks,
+        async tests that await rather than sleep, no hardcoded credentials, and no tests of
+        compiler-generated conformances.
+
+    - path: "**/*.xcdatamodeld/**"
+      instructions: |
+        Core Data model. A change here needs a migration plan: name the model version and whether
+        lightweight migration covers it.
+
+    - path: "**/*.entitlements"
+      instructions: |
+        Entitlements widen what the app may do. Each added entitlement needs a stated reason in
+        the PR; flag any that the code does not use.
+
+    - path: ".github/workflows/**"
+      instructions: |
+        CI. Actions pinned by full commit SHA, `permissions:` read-only unless a job states why,
+        checkout with persist-credentials: false, a timeout-minutes on every job, and no
+        `${{ github.event.* }}` text interpolated into a `run:` script.

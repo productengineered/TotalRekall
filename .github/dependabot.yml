@@ -1,0 +1,24 @@
+# dependabot.yml -- keeps the pinned GitHub Actions moving without taking a release the day it ships.
+# The app ships no Swift package dependencies, so github-actions is the only ecosystem.
+#
+#   - cooldown 7 days: a version update waits until the release is a week old. Compromised releases
+#     are usually found and pulled within days, so a bump that waits a week rarely lands one.
+#   - security updates skip the cooldown (GitHub applies cooldown to version updates only).
+#   - minor and patch bumps arrive grouped, one PR a week. A major arrives alone.
+#   - A maintainer reviews and merges these; nothing is auto-merged.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions-minor-and-patch:
+        update-types: [minor, patch]

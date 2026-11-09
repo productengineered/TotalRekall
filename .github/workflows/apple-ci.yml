@@ -1,0 +1,70 @@
+# apple-ci.yml -- build and run the unit tests on a GitHub-hosted macOS runner.
+#
+# Rules this file keeps:
+#   - actions pinned by commit SHA; the token is read-only; checkout does not persist it
+#   - a pinned runner image (macos-26) and a pinned Xcode, never macos-latest or the image's
+#     default Xcode, so a runner-image update cannot change the toolchain under a pull request
+#   - a timeout on the job
+#   - the job's `name:` ("Build and Test") is the status-check context branch protection requires
+#   - unit tests only: the UI tests need Accessibility permission and a logged-in desktop session,
+#     which a hosted runner does not provide
+#   - the build and test flags match what you would run locally with no signing identity
+#
+# Bumping XCODE_VERSION: the "Select the pinned Xcode" step fails with the list of installed Xcodes
+# when the pin is not on the image. The macos-26 image README in actions/runner-images is the list.
+name: Apple CI
+
+"on":
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_VERSION: "26.6"
+  PROJECT: "app/TotalRekall.xcodeproj"
+  SCHEME: "TotalRekall"
+  TEST_TARGET: "TotalRekallTests"
+
+jobs:
+  build-test:
+    name: Build and Test
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select the pinned Xcode
+        run: |
+          set -euo pipefail
+          app="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$app" ]; then
+            echo "::error::Xcode ${XCODE_VERSION} is not on this runner image. Installed:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
+      - name: Build
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
+            -destination 'platform=macOS' -configuration Debug \
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO
+      - name: Unit tests
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
+            -destination 'platform=macOS' -configuration Debug \
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
+            -only-testing:"$TEST_TARGET" \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 60 \
+            -maximum-test-execution-time-allowance 120 -parallel-testing-enabled NO

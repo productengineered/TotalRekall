@@ -1,0 +1,345 @@
+{
+  "capability": "full",
+  "configKey": "fixture",
+  "counts": {
+    "desktopMissing": 0,
+    "failed": 2,
+    "intentionallySkipped": 4,
+    "restored": 10,
+    "total": 36,
+    "unreachable": 3,
+    "unverified": 3
+  },
+  "cycleID": "18E5C149-A72A-4E6F-93A1-BA25700B38A3",
+  "layout": {},
+  "monitorFix": "verified",
+  "needsAttention": true,
+  "restoredAt": "2026-11-05T21:35:00Z",
+  "trigger": "display-change",
+  "windows": [
+    {
+      "appName": "Fixture App 01",
+      "bundleID": "com.example.app00",
+      "detail": null,
+      "snapshotID": "92FD62C2-F409-4A90-BCD6-326B5C858115",
+      "status": "moved",
+      "title": "",
+      "windowID": 100
+    },
+    {
+      "appName": "Fixture App 02",
+      "bundleID": "com.example.app01",
+      "detail": null,
+      "snapshotID": "E27C2002-A535-41F1-B735-BD9B3E7D66CE",
+      "status": "moved",
+      "title": "",
+      "windowID": 101
+    },
+    {
+      "appName": "Fixture App 02",
+      "bundleID": "com.example.app01",
+      "detail": null,
+      "snapshotID": "A633711E-C8F9-4D03-974F-191ECFDE70A5",
+      "status": "space-moved",
+      "title": "",
+      "windowID": 102
+    },
+    {
+      "appName": "Fixture App 03",
+      "bundleID": "com.example.app02",
+      "detail": null,
+      "snapshotID": "DD972A51-DD5E-4D79-B012-E9930AA22E7B",
+      "status": "space-moved",
+      "title": "",
+      "windowID": 103
+    },
+    {
+      "appName": "Fixture App 03",
+      "bundleID": "com.example.app02",
+      "detail": null,
+      "snapshotID": "609C77E3-E077-444B-AE5C-F694ACEE8647",
+      "status": "moved-unverified",
+      "title": "",
+      "windowID": 104
+    },
+    {
+      "appName": "Fixture App 03",
+      "bundleID": "com.example.app02",
+      "detail": null,
+      "snapshotID": "F31C2DBF-4FC0-4103-B1BC-AC61AFC71C19",
+      "status": "ax-unreachable",
+      "title": "",
+      "windowID": 105
+    },
+    {
+      "appName": "Fixture App 04",
+      "bundleID": "com.example.app03",
+      "detail": null,
+      "snapshotID": "D505341B-0492-4EE8-92D1-799F59511DA1",
+      "status": "moved-unverified",
+      "title": "",
+      "windowID": 106
+    },
+    {
+      "appName": "Fixture App 05",
+      "bundleID": "com.example.app04",
+      "detail": null,
+      "snapshotID": "269E697D-FDB5-47B5-90EE-E5DFA8CC23D5",
+      "status": "ax-unreachable",
+      "title": "",
+      "windowID": 107
+    },
+    {
+      "appName": "Fixture App 05",
+      "bundleID": "com.example.app04",
+      "detail": null,
+      "snapshotID": "C8390D08-77BC-45E5-A086-EB1D543AD138",
+      "status": "skipped:minimized",
+      "title": "",
+      "windowID": 108
+    },
+    {
+      "appName": "Fixture App 06",
+      "bundleID": "com.example.app05",
+      "detail": null,
+      "snapshotID": "AD0D8CBB-B270-49D1-B757-F5392B698240",
+      "status": "skipped:minimized",
+      "title": "",
+      "windowID": 109
+    },
+    {
+      "appName": "Fixture App 06",
+      "bundleID": "com.example.app05",
+      "detail": null,
+      "snapshotID": "CBE84A1C-3A0B-47D3-B1E9-8257062FF3C0",
+      "status": "already-correct",
+      "title": "",
+      "windowID": 110
+    },
+    {
+      "appName": "Fixture App 06",
+      "bundleID": "com.example.app05",
+      "detail": null,
+      "snapshotID": "2B9EA4F6-6607-4504-A0C5-17AC220E4CB7",
+      "status": "failed",
+      "title": "",
+      "windowID": 111
+    },
+    {
+      "appName": "Fixture App 07",
+      "bundleID": "com.example.app06",
+      "detail": null,
+      "snapshotID": "F458E5D5-6DF3-446C-82A2-A2CF8EF5AE6C",
+      "status": "already-correct",
+      "title": "",
+      "windowID": 112
+    },
+    {
+      "appName": "Fixture App 08",
+      "bundleID": "com.example.app07",
+      "detail": null,
+      "snapshotID": "7419CD92-4886-4F1C-9EE3-BB87C909B9D0",
+      "status": "failed",
+      "title": "",
+      "windowID": 113
+    },
+    {
+      "appName": "Fixture App 08",
+      "bundleID": "com.example.app07",
+      "detail": null,
+      "snapshotID": "B532316D-AD65-49A0-BC76-A6E764D783A0",
+      "status": "skipped:not-found",
+      "title": "",
+      "windowID": 114
+    },
+    {
+      "appName": "Fixture App 09",
+      "bundleID": "com.example.app08",
+      "detail": null,
+      "snapshotID": "5B852CE6-AC9C-4767-8F67-95D4077F5582",
+      "status": "skipped:not-found",
+      "title": "",
+      "windowID": 115
+    },
+    {
+      "appName": "Fixture App 09",
+      "bundleID": "com.example.app08",
+      "detail": null,
+      "snapshotID": "E14ECB00-C696-45D0-A2C5-F0C2617F3D4C",
+      "status": "moved",
+      "title": "",
+      "windowID": 116
+    },
+    {
+      "appName": "Fixture App 09",
+      "bundleID": "com.example.app08",
+      "detail": null,
+      "snapshotID": "BAFF9A41-6F92-41DF-8701-5AC51CD28B89",
+      "status": "moved",
+      "title": "",
+      "windowID": 117
+    },
+    {
+      "appName": "Fixture App 10",
+      "bundleID": "com.example.app09",
+      "detail": null,
+      "snapshotID": "630E8824-CAD4-453C-BCB2-851435A9607A",
+      "status": "moved",
+      "title": "",
+      "windowID": 118
+    },
+    {
+      "appName": "Fixture App 11",
+      "bundleID": "com.example.app10",
+      "detail": null,
+      "snapshotID": "A5004C0B-A062-402C-9C9F-0265DF9B1A37",
+      "status": "moved",
+      "title": "",
+      "windowID": 119
+    },
+    {
+      "appName": "Fixture App 11",
+      "bundleID": "com.example.app10",
+      "detail": null,
+      "snapshotID": "1A53EBC7-6EDA-4948-A018-1A8D54B4BB87",
+      "status": "space-moved",
+      "title": "",
+      "windowID": 120
+    },
+    {
+      "appName": "Fixture App 12",
+      "bundleID": "com.example.app11",
+      "detail": null,
+      "snapshotID": "270D3F5D-AA1C-4EE6-A479-B0CD4D93EEE0",
+      "status": "space-moved",
+      "title": "",
+      "windowID": 121
+    },
+    {
+      "appName": "Fixture App 12",
+      "bundleID": "com.example.app11",
+      "detail": null,
+      "snapshotID": "F9185E08-4B2C-4834-B021-CF9186F22012",
+      "status": "moved-unverified",
+      "title": "",
+      "windowID": 122
+    },
+    {
+      "appName": "Fixture App 12",
+      "bundleID": "com.example.app11",
+      "detail": null,
+      "snapshotID": "B5EC2C3E-B5C8-4AB1-AF52-7211BA0242D6",
+      "status": "ax-unreachable",
+      "title": "",
+      "windowID": 123
+    },
+    {
+      "appName": "Fixture App 13",
+      "bundleID": "com.example.app12",
+      "detail": null,
+      "snapshotID": "63AB87D5-14C6-4707-984A-9B8EDDAEE59A",
+      "status": "moved-unverified",
+      "title": "",
+      "windowID": 124
+    },
+    {
+      "appName": "Fixture App 14",
+      "bundleID": "com.example.app13",
+      "detail": null,
+      "snapshotID": "15DECF71-C303-45E3-97D3-C7483EE6EE3A",
+      "status": "ax-unreachable",
+      "title": "",
+      "windowID": 125
+    },
+    {
+      "appName": "Fixture App 14",
+      "bundleID": "com.example.app13",
+      "detail": null,
+      "snapshotID": "D8B6D26A-7890-470E-A293-E88F9B670ED4",
+      "status": "skipped:minimized",
+      "title": "",
+      "windowID": 126
+    },
+    {
+      "appName": "Fixture App 15",
+      "bundleID": "com.example.app14",
+      "detail": null,
+      "snapshotID": "7A6E9CB1-96DB-4764-A32A-8375DDB44BB8",
+      "status": "skipped:minimized",
+      "title": "",
+      "windowID": 127
+    },
+    {
+      "appName": "Fixture App 15",
+      "bundleID": "com.example.app14",
+      "detail": null,
+      "snapshotID": "BFFC1C0B-3AE9-43E9-8A5E-E9DDD3621415",
+      "status": "already-correct",
+      "title": "",
+      "windowID": 128
+    },
+    {
+      "appName": "Fixture App 15",
+      "bundleID": "com.example.app14",
+      "detail": null,
+      "snapshotID": "C70221C5-8B5D-4D13-8A0C-CCBD4B284025",
+      "status": "failed",
+      "title": "",
+      "windowID": 129
+    },
+    {
+      "appName": "Fixture App 16",
+      "bundleID": "com.example.app15",
+      "detail": null,
+      "snapshotID": "D6061684-5611-4173-9DF9-5DEB7AEADFBB",
+      "status": "already-correct",
+      "title": "",
+      "windowID": 130
+    },
+    {
+      "appName": "Fixture App 17",
+      "bundleID": "com.example.app16",
+      "detail": null,
+      "snapshotID": "E4C5E9EB-5B24-4F82-868E-DF7216C9822E",
+      "status": "failed",
+      "title": "",
+      "windowID": 131
+    },
+    {
+      "appName": "Fixture App 17",
+      "bundleID": "com.example.app16",
+      "detail": null,
+      "snapshotID": "BB07D5E1-BA7A-4A07-9C38-39BE4C9E1846",
+      "status": "skipped:not-found",
+      "title": "",
+      "windowID": 132
+    },
+    {
+      "appName": "Fixture App 18",
+      "bundleID": "com.example.app17",
+      "detail": null,
+      "snapshotID": "8E8D8885-C471-4134-83E1-0D0F97C15F0A",
+      "status": "skipped:not-found",
+      "title": "",
+      "windowID": 133
+    },
+    {
+      "appName": "Fixture App 18",
+      "bundleID": "com.example.app17",
+      "detail": null,
+      "snapshotID": "964747ED-A379-4311-A642-79B0D437A3DD",
+      "status": "moved",
+      "title": "",
+      "windowID": 134
+    },
+    {
+      "appName": "Fixture App 18",
+      "bundleID": "com.example.app17",
+      "detail": null,
+      "snapshotID": "E6B1B18B-8617-44A7-80D6-CD9408B31239",
+      "status": "moved",
+      "title": "",
+      "windowID": 135
+    }
+  ]
+}
