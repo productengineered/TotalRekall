@@ -46,6 +46,13 @@ targets:
           # Hardened runtime on, and no injected get-task-allow: the app holds Accessibility.
           ENABLE_HARDENED_RUNTIME: YES
           CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+          # Strip the shipped binary so it carries no linker debug-map entries (local build paths).
+          # Symbols stay available in the dSYM.
+          DEPLOYMENT_POSTPROCESSING: YES
+          STRIP_INSTALLED_PRODUCT: YES
+          STRIP_STYLE: all
+          COPY_PHASE_STRIP: YES
+          DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
     preBuildScripts:
       - name: SwiftLint
         basedOnDependencyAnalysis: false
