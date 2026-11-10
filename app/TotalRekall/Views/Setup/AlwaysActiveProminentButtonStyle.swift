@@ -20,6 +20,8 @@ struct AlwaysActiveProminentButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovering = false
+    /// Fill colour. Defaults to the accent; the Forget Desk confirmation passes `.red` for its destructive button.
+    var tint: Color = .accentColor
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
@@ -57,7 +59,7 @@ struct AlwaysActiveProminentButtonStyle: ButtonStyle {
     }
 
     private func fill(pressed: Bool) -> Color {
-        let base = Color.accentColor
+        let base = tint
         if pressed { return base.mix(with: .black, by: contrast == .increased ? 0.35 : 0.22) }
         if isHovering { return base.mix(with: .white, by: 0.12) }
         return contrast == .increased ? base.mix(with: .black, by: 0.2) : base

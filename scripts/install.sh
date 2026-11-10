@@ -23,6 +23,18 @@ done
 
 die() { echo "error: $*" >&2; exit 1; }
 
+# Fail unless the signed app has the hardened runtime flag and no get-task-allow entitlement.
+verify_hardening() {
+  local app="$1" info ents
+  info="$(codesign -dv "$app" 2>&1)" || die "codesign -dv failed for $app"
+  printf '%s\n' "$info" | grep -E '^CodeDirectory' | grep -q 'runtime' \
+    || die "hardened runtime flag missing from signature of $app"
+  ents="$(codesign -d --entitlements - "$app" 2>&1)" || die "codesign entitlement inspection failed for $app"
+  if printf '%s\n' "$ents" | grep -q 'get-task-allow'; then
+    die "get-task-allow entitlement present in $app"
+  fi
+}
+
 SIGN_ARGS=()
 if [[ "$ADHOC" -eq 1 ]]; then
   cat >&2 <<'MSG'
@@ -30,7 +42,7 @@ WARNING: --adhoc build. Ad-hoc signatures change with every build, so macOS may 
 Accessibility (and other TCC) permission granted to TotalRekall on each reinstall. You will
 likely need to re-grant it in System Settings > Privacy & Security > Accessibility.
 MSG
-  SIGN_ARGS=(CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES DEVELOPMENT_TEAM=)
+  SIGN_ARGS=(CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES DEVELOPMENT_TEAM= "OTHER_CODE_SIGN_FLAGS=--options runtime")
 else
   TEAM="${DEVELOPMENT_TEAM:-}"
   if [[ -z "$TEAM" && -f "$LOCAL_XCCONFIG" ]]; then
@@ -50,7 +62,7 @@ else
   then check: security find-identity -v -p codesigning
   (To build anyway with ad-hoc signing, run: scripts/install.sh --adhoc)"
   fi
-  SIGN_ARGS=(DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic)
+  SIGN_ARGS=(DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic "OTHER_CODE_SIGN_FLAGS=--options runtime")
 fi
 
 DERIVED="$(mktemp -d "${TMPDIR:-/tmp}/totalrekall-install.XXXXXX")"
@@ -65,6 +77,7 @@ BUILT="${DERIVED}/Build/Products/Release/${APP_NAME}.app"
 
 echo "==> Verifying built signature"
 codesign --verify --deep --strict "$BUILT" || die "built app failed signature verification"
+verify_hardening "$BUILT"
 
 echo "==> Quitting running ${APP_NAME}"
 if pgrep -x "$APP_NAME" >/dev/null; then
@@ -100,6 +113,7 @@ trap rollback EXIT
 rm -rf "$STAGE" "$BACKUP"
 ditto "$BUILT" "$STAGE"
 codesign --verify --deep --strict "$STAGE" || die "staged app failed signature verification"
+verify_hardening "$STAGE"
 if [[ -d "$DEST" ]]; then mv "$DEST" "$BACKUP"; fi
 mv "$STAGE" "$DEST"
 

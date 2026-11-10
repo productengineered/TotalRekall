@@ -12,6 +12,65 @@ enum SetupState: Equatable, Sendable {
     case waitingForGrant
     case relaunchSuggested
     case granted
+    /// The last step: name this desk (docked) or explain it will be asked later (undocked).
+    case namingDesk(SetupDeskKind)
+}
+
+enum SetupDeskKind: Equatable, Sendable { case docked, undocked }
+
+/// The desk the setup step is naming, resolved from the live monitors when Continue is pressed.
+struct SetupDeskInfo: Equatable, Sendable {
+    let key: String
+    /// The registered default name ("Desk N"); the same string the engine already holds.
+    let name: String
+    /// Names of every other desk, for the duplicate check.
+    let otherNames: [String]
+}
+
+/// What the setup desk step needs from the engine. Main-actor so the view model stays simple.
+@MainActor
+protocol SetupDeskProviding: AnyObject {
+    /// The desk for the connected external monitors (registered under its default name), or nil when only
+    /// the built-in display is connected.
+    func currentDesk() async -> SetupDeskInfo?
+    /// Names the desk and saves its arrangement, only if the live monitors are still that desk.
+    /// Returns false (and changes nothing) when they are not.
+    func nameDesk(_ key: String, as name: String) async -> Bool
+    /// The setup step is done with this desk; the new-desk prompt must never ask for it (D9).
+    func markHandled(_ key: String)
+}
+
+/// Engine-backed provider. `liveLayout` reads the connected displays.
+@MainActor
+final class SetupDeskService: SetupDeskProviding {
+    private let manager: DeskManaging
+    private let liveLayout: @MainActor () -> MonitorLayout
+    var onHandled: (@MainActor (String) -> Void)?
+
+    init(manager: DeskManaging, liveLayout: @escaping @MainActor () -> MonitorLayout) {
+        self.manager = manager
+        self.liveLayout = liveLayout
+    }
+
+    func currentDesk() async -> SetupDeskInfo? {
+        let live = liveLayout()
+        guard DeskKey.hasExternalPanel(live), let key = DeskKey.make(for: live) else { return nil }
+        // Register now so the prefilled default and the stored name are the same string.
+        _ = await manager.registerNewDesk(live: live)
+        let desks = await manager.deskSummaries()
+        guard let current = desks.first(where: { $0.id == key }) else { return nil }
+        return SetupDeskInfo(key: key, name: current.name, otherNames: desks.filter { $0.id != key }.map(\.name))
+    }
+
+    func nameDesk(_ key: String, as name: String) async -> Bool {
+        let live = liveLayout()
+        guard DeskKey.hasExternalPanel(live), DeskKey.make(for: live) == key else { return false }
+        guard case .renamed = await manager.renameDesk(key, to: name) else { return false }
+        if case .saved = await manager.saveDeskArrangement(key) { return true }
+        return true   // named; the arrangement is learned by the next cycle if it was refused
+    }
+
+    func markHandled(_ key: String) { onHandled?(key) }
 }
 
 /// Persists "setup finished" across launches.
@@ -77,12 +136,19 @@ final class SetupViewModel {
     private(set) var state: SetupState = .needsPermission(.firstRun)
     private(set) var reason: SetupReason = .firstRun
     private(set) var isWindowVisible = false
+    /// Non-nil only while `state == .namingDesk(.docked)`.
+    private(set) var deskModel: DeskNameModel?
     let paneName: String
 
     /// The controller shows (or fronts) the window.
     @ObservationIgnored var onPresent: (@MainActor () -> Void)?
     /// The controller closes the window.
     @ObservationIgnored var onClose: (@MainActor () -> Void)?
+
+    /// Set by the app once the engine exists; nil behaves like an undocked Mac (no name field).
+    @ObservationIgnored var deskProvider: SetupDeskProviding?
+    @ObservationIgnored private var deskKey: String?
+    @ObservationIgnored private(set) var deskSaveTask: Task<Void, Never>?
 
     @ObservationIgnored private let status: AccessibilityStatusProviding
     @ObservationIgnored private let store: SetupCompletionStoring
@@ -181,14 +247,14 @@ final class SetupViewModel {
         }
         if isWindowVisible {
             // Revoked while the granted window is open. Any other open state is unchanged.
-            if state == .granted { show(.needsPermission(.revoked), logged: .revoked) }
+            if isPastPermission { show(.needsPermission(.revoked), logged: .revoked) }
         } else if showRevoked {
             show(.needsPermission(.revoked), logged: .revoked)
         }
     }
 
     private func handleGrant() {
-        guard isWindowVisible, state != .granted else {
+        guard isWindowVisible, !isPastPermission else {
             // Hidden (or already done): just remember that setup is complete.
             if !isWindowVisible { store.markCompleted() }
             return
@@ -207,14 +273,14 @@ final class SetupViewModel {
 
     /// "Open System Settings" (and "Open System Settings Again").
     func openSystemSettings() {
-        guard isWindowVisible, state != .granted else { return }
+        guard isWindowVisible, !isPastPermission else { return }
         status.openAccessibilitySettings()
         diagnostics.record(.setupOpenSettings())
         state = .waitingForGrant
         startTimeout()
     }
 
-    /// "Relaunch Total Rekall".
+    /// "Relaunch TotalRekall".
     func relaunch() {
         diagnostics.record(.setupRelaunch())
         relaunchAction()
@@ -225,6 +291,10 @@ final class SetupViewModel {
         guard isWindowVisible else { return }
         if state == .granted {
             done()
+            return
+        }
+        if case .namingDesk = state {
+            leaveDeskStep()
             return
         }
         timeoutTask?.cancel()
@@ -241,6 +311,63 @@ final class SetupViewModel {
         timeoutTask = nil
         isWindowVisible = false
         onClose?()
+    }
+
+    // MARK: Desk step (named desks)
+
+    /// "Continue" in the granted state: docked if an external monitor is connected, else undocked. The
+    /// choice is made once, here; there is no live swap inside the step.
+    func continueToDeskStep() async {
+        guard isWindowVisible, state == .granted else { return }
+        guard let info = await deskProvider?.currentDesk() else {
+            guard isWindowVisible, state == .granted else { return }
+            state = .namingDesk(.undocked)
+            return
+        }
+        guard isWindowVisible, state == .granted else { return }
+        deskKey = info.key
+        deskModel = DeskNameModel(
+            mode: .setup, initialName: info.name, otherNames: info.otherNames,
+            onSave: { [weak self] name in self?.saveDesk(named: name) },
+            onCancel: { [weak self] in self?.leaveDeskStep() }
+        )
+        state = .namingDesk(.docked)
+    }
+
+    /// "Done" in the undocked step.
+    func finishUndockedStep() {
+        leaveDeskStep()
+    }
+
+    /// Esc / close / Cmd-W (either desk state), and Done when undocked. The desk keeps its default name.
+    func leaveDeskStep() {
+        guard isWindowVisible, case .namingDesk = state else { return }
+        handleDeskAndClose()
+    }
+
+    private func saveDesk(named name: String) {
+        guard isWindowVisible, case .namingDesk(.docked) = state, let key = deskKey else { return }
+        let provider = deskProvider
+        deskSaveTask = Task { [weak self] in
+            // If the monitors changed since Continue the provider changes nothing; the step just closes.
+            _ = await provider?.nameDesk(key, as: name)
+            self?.handleDeskAndClose()
+        }
+    }
+
+    private func handleDeskAndClose() {
+        guard isWindowVisible else { return }
+        if let key = deskKey { deskProvider?.markHandled(key) }
+        deskKey = nil
+        deskModel = nil
+        done()
+    }
+
+    private var isPastPermission: Bool {
+        switch state {
+        case .granted, .namingDesk: true
+        default: false
+        }
     }
 
     // MARK: Internals
@@ -289,6 +416,11 @@ final class SetupViewModel {
         if case .needsPermission(let newReason) = newState { reason = newReason }
         state = newState
         isWindowVisible = true
+        if newState == .namingDesk(.docked) {
+            deskModel = DeskNameModel(mode: .setup, initialName: "Desk 1", otherNames: [], onSave: { _ in }, onCancel: {})
+        } else {
+            deskModel = nil
+        }
     }
     #endif
 }

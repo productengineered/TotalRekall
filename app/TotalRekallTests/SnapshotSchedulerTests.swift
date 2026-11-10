@@ -137,7 +137,7 @@ final class SnapshotSchedulerTests: XCTestCase {
             XCTAssertEqual(result, .refused(message: SnapshotRefusal.displayChangeInProgress.message))
             let written = FileManager.default.fileExists(atPath: store.snapshotURL.path)
             XCTAssertFalse(written, "reopen: \(reopenBeforeSave)")
-            let learned = await learnedStore.layout
+            let learned = await learnedStore.layout(forLive: layout(["b", "a"]))
             XCTAssertTrue(learned.origins.isEmpty)
             XCTAssertEqual(saves.value, 0)
         }
@@ -155,7 +155,7 @@ final class SnapshotSchedulerTests: XCTestCase {
         await cap.setLayout(layout(["b", "a"]))
         await cap.setDuringCapture { gate.closeForDisplayChange() }
         await coord.runScheduledSnapshot()
-        let learned = await coord.learnedLayout
+        let learned = await coord.deskLookup(live: docked).layout
         XCTAssertEqual(learned, docked)
     }
 
@@ -167,7 +167,7 @@ final class SnapshotSchedulerTests: XCTestCase {
         let coord = SnapshotCoordinator(capturer: cap, gate: gate, liveLayout: { live.value })
         await cap.setLayout(docked)
         _ = await coord.saveManually()
-        let learned1 = await coord.learnedLayout
+        let learned1 = await coord.deskLookup(live: docked).layout
         XCTAssertEqual(learned1, docked)
 
         // Scrambled state while closed: never captured, never learned.
@@ -176,7 +176,7 @@ final class SnapshotSchedulerTests: XCTestCase {
         _ = await coord.saveManually()
         gate.relabel(.awaitingRestore)
         await coord.runScheduledSnapshot()
-        let learned2 = await coord.learnedLayout
+        let learned2 = await coord.deskLookup(live: docked).layout
         XCTAssertEqual(learned2, docked)
         let count = await cap.reasons.count
         XCTAssertEqual(count, 1)
@@ -194,7 +194,7 @@ final class SnapshotSchedulerTests: XCTestCase {
         await cap.setLayout(layout(["a"]))
         let r = await coord.saveManually()
         XCTAssertEqual(r, .refused(message: SnapshotRefusal.dockedSetAbsent.message))
-        let learned = await coord.learnedLayout
+        let learned = await coord.deskLookup(live: docked).layout
         XCTAssertEqual(learned, docked)
         let count = await cap.reasons.count
         XCTAssertEqual(count, 1)
@@ -205,7 +205,42 @@ final class SnapshotSchedulerTests: XCTestCase {
         let store = LearnedLayoutStore()
         let learnedEmpty = await store.learn(MonitorLayout(origins: [:]), ifGate: try XCTUnwrap(gate.token()))
         XCTAssertFalse(learnedEmpty)
-        let learned = await store.layout
-        XCTAssertTrue(learned.origins.isEmpty)
+        let learned = await store.desks
+        XCTAssertTrue(learned.isEmpty)
     }
+
+    // MARK: Forget Desk holds
+
+    func testScheduledSnapshotAfterForgetPromptsInsteadOfSilentlyRegistering() async throws {
+        let docked = layout(["a", "b"])
+        let key = try XCTUnwrap(DeskKey.make(for: docked))
+        let cap = FakeCapturer()
+        await cap.setLayout(docked)
+        let gate = SnapshotGate()
+        let store = LearnedLayoutStore()
+        let coord = SnapshotCoordinator(capturer: cap, gate: gate, learnedStore: store, liveLayout: { docked })
+        let events = EventBox()
+        await coord.setNewDeskHandler { events.add($0) }
+
+        await coord.runScheduledSnapshot()
+        XCTAssertTrue(events.value.isEmpty, "the first learn of a desk is the ordinary registration")
+        let registered = await store.desks
+        XCTAssertEqual(registered.map(\.key), [key])
+
+        let forgot = await coord.forgetDesk(key)
+        XCTAssertTrue(forgot)
+        await coord.runScheduledSnapshot()
+
+        XCTAssertEqual(events.value.map(\.key), [key])
+        XCTAssertEqual(events.value.first?.name, "Desk 1")
+        await coord.runScheduledSnapshot()
+        XCTAssertEqual(events.value.count, 1, "announced once")
+    }
+}
+
+private final class EventBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [NewDeskEvent] = []
+    var value: [NewDeskEvent] { lock.lock(); defer { lock.unlock() }; return events }
+    func add(_ event: NewDeskEvent) { lock.lock(); events.append(event); lock.unlock() }
 }

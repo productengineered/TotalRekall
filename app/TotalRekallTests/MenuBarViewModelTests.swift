@@ -164,9 +164,11 @@ final class MenuBarViewModelTests: XCTestCase {
         let older = Date(timeIntervalSince1970: 1_000)
         let newer = Date(timeIntervalSince1970: 2_000)
         let first = Task { await vm.refreshLastRestoreDetail() }
-        while await loader.pending < 1 { await Task.yield() }
+        let firstPending = await waitUntil { await loader.pending >= 1 }
+        XCTAssertTrue(firstPending, "first load should reach the loader within the deadline")
         let second = Task { await vm.refreshLastRestoreDetail() }
-        while await loader.pending < 2 { await Task.yield() }
+        let secondPending = await waitUntil { await loader.pending >= 2 }
+        XCTAssertTrue(secondPending, "second load should reach the loader within the deadline")
         await loader.resolve(1, with: .loaded(detail(newer)))
         await second.value
         await loader.resolve(0, with: .loaded(detail(older)))

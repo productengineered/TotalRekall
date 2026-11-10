@@ -20,6 +20,21 @@ private final class FakeCompletionStore: SetupCompletionStoring {
 }
 
 @MainActor
+private final class FakeDeskProvider: SetupDeskProviding {
+    var desk: SetupDeskInfo?
+    var stillDocked = true
+    private(set) var named: [(key: String, name: String)] = []
+    private(set) var handled: [String] = []
+    func currentDesk() async -> SetupDeskInfo? { desk }
+    func nameDesk(_ key: String, as name: String) async -> Bool {
+        guard stillDocked else { return false }
+        named.append((key, name))
+        return true
+    }
+    func markHandled(_ key: String) { handled.append(key) }
+}
+
+@MainActor
 final class SetupViewModelTests: XCTestCase {
     private var checker: SetupFakeTrustChecker!
     private var monitor: AccessibilityMonitor!
@@ -60,10 +75,6 @@ final class SetupViewModelTests: XCTestCase {
     }
 
     private func eventNames() -> [String] { diagnostics.events.map(\.name) }
-
-    private func waitUntil(_ condition: @MainActor () -> Bool) async {
-        for _ in 0..<500 where !condition() { await Task.yield() }
-    }
 
     // MARK: Launch
 
@@ -162,6 +173,118 @@ final class SetupViewModelTests: XCTestCase {
         XCTAssertFalse(eventNames().contains("setup-skipped"))
     }
 
+    // MARK: Desk step (named desks)
+
+    private func grantedSUT(desk: SetupDeskInfo?) -> (SetupViewModel, FakeDeskProvider) {
+        let sut = makeSUT(trusted: true)
+        let provider = FakeDeskProvider()
+        provider.desk = desk
+        sut.deskProvider = provider
+        sut.evaluateLaunch()
+        return (sut, provider)
+    }
+
+    private let dockedDesk = SetupDeskInfo(key: "k1", name: "Desk 1", otherNames: ["Home"])
+
+    func testContinueWithExternalMonitorsShowsDockedStepPrefilledWithDefaultName() async {
+        let (sut, _) = grantedSUT(desk: dockedDesk)
+        await sut.continueToDeskStep()
+        XCTAssertEqual(sut.state, .namingDesk(.docked))
+        XCTAssertEqual(sut.deskModel?.text, "Desk 1")
+        XCTAssertEqual(sut.deskModel?.otherNames, ["Home"])
+        XCTAssertTrue(sut.isWindowVisible)
+    }
+
+    func testSaveNamesTheDeskMarksItHandledAndCloses() async {
+        let (sut, provider) = grantedSUT(desk: dockedDesk)
+        await sut.continueToDeskStep()
+        sut.deskModel?.text = "  Office  "
+        sut.deskModel?.save()
+        await sut.deskSaveTask?.value
+        XCTAssertEqual(provider.named.map(\.name), ["Office"])
+        XCTAssertEqual(provider.named.map(\.key), ["k1"])
+        XCTAssertEqual(provider.handled, ["k1"])
+        XCTAssertFalse(sut.isWindowVisible)
+        XCTAssertEqual(closeCount, 1)
+    }
+
+    func testSaveIsDisabledForDuplicateOrEmptyNameAndDoesNothing() async {
+        let (sut, provider) = grantedSUT(desk: dockedDesk)
+        await sut.continueToDeskStep()
+        sut.deskModel?.text = "home"
+        XCTAssertEqual(sut.deskModel?.canSave, false)
+        sut.deskModel?.save()
+        sut.deskModel?.text = "   "
+        XCTAssertEqual(sut.deskModel?.canSave, false)
+        sut.deskModel?.save()
+        XCTAssertNil(sut.deskSaveTask)
+        XCTAssertTrue(provider.named.isEmpty)
+        XCTAssertTrue(sut.isWindowVisible)
+    }
+
+    func testSaveWhenNoLongerDockedJustClosesWithoutNaming() async {
+        let (sut, provider) = grantedSUT(desk: dockedDesk)
+        await sut.continueToDeskStep()
+        provider.stillDocked = false
+        sut.deskModel?.save()
+        await sut.deskSaveTask?.value
+        XCTAssertTrue(provider.named.isEmpty)
+        XCTAssertEqual(provider.handled, ["k1"])
+        XCTAssertFalse(sut.isWindowVisible)
+    }
+
+    func testEscapeInDockedStepKeepsDefaultNameMarksHandledAndCloses() async {
+        let (sut, provider) = grantedSUT(desk: dockedDesk)
+        await sut.continueToDeskStep()
+        sut.skip()
+        sut.skip()
+        XCTAssertTrue(provider.named.isEmpty)
+        XCTAssertEqual(provider.handled, ["k1"])
+        XCTAssertEqual(closeCount, 1)
+        XCTAssertFalse(eventNames().contains("setup-skipped"))
+    }
+
+    func testContinueWithBuiltInDisplayOnlyShowsUndockedStepAndDoneCloses() async {
+        let (sut, provider) = grantedSUT(desk: nil)
+        await sut.continueToDeskStep()
+        XCTAssertEqual(sut.state, .namingDesk(.undocked))
+        XCTAssertNil(sut.deskModel)
+        sut.finishUndockedStep()
+        sut.finishUndockedStep()
+        XCTAssertFalse(sut.isWindowVisible)
+        XCTAssertEqual(closeCount, 1)
+        XCTAssertTrue(provider.named.isEmpty)
+        XCTAssertTrue(provider.handled.isEmpty)
+    }
+
+    func testContinueWithoutAProviderBehavesAsUndocked() async {
+        let sut = makeSUT(trusted: true)
+        sut.evaluateLaunch()
+        await sut.continueToDeskStep()
+        XCTAssertEqual(sut.state, .namingDesk(.undocked))
+    }
+
+    func testRepeatedGrantDoesNotKickTheDeskStepBackToGranted() async {
+        let (sut, _) = grantedSUT(desk: dockedDesk)
+        await sut.continueToDeskStep()
+        sut.trustDidChange(true)
+        XCTAssertEqual(sut.state, .namingDesk(.docked))
+    }
+
+    func testGrantedPrimaryIsContinueAndDeskCopyMatchesSpec() {
+        let granted = SetupCopy(state: .granted, reason: .firstRun, paneName: "Accessibility")
+        XCTAssertEqual(granted.primary, .continueSetup)
+        XCTAssertEqual(granted.primaryTitle, "Continue")
+        let docked = SetupCopy(state: .namingDesk(.docked), reason: .firstRun, paneName: "Accessibility")
+        XCTAssertEqual(docked.title, "Name this desk")
+        XCTAssertEqual(docked.primary, .saveDesk)
+        XCTAssertTrue(docked.showsDeskField)
+        let undocked = SetupCopy(state: .namingDesk(.undocked), reason: .firstRun, paneName: "Accessibility")
+        XCTAssertEqual(undocked.body, "TotalRekall will ask you to name the desk when you connect to it.")
+        XCTAssertEqual(undocked.primaryTitle, "Done")
+        XCTAssertFalse(undocked.showsDeskField)
+    }
+
     // MARK: Relaunch
 
     func testRelaunchSuggestedAfterTimeout() async {
@@ -170,7 +293,8 @@ final class SetupViewModelTests: XCTestCase {
         sut.openSystemSettings()
         await clock.waitForSleeper(deadline: .seconds(10))
         await clock.advance(by: .seconds(10))
-        await waitUntil { sut.state == .relaunchSuggested }
+        let reached = await waitUntil { sut.state == .relaunchSuggested }
+        XCTAssertTrue(reached, "state should reach the expected value within the deadline")
         XCTAssertEqual(sut.state, .relaunchSuggested)
         XCTAssertTrue(eventNames().contains("setup-relaunch-suggested"))
 
@@ -193,7 +317,8 @@ final class SetupViewModelTests: XCTestCase {
         sut.openSystemSettings()
         await clock.waitForSleeper(deadline: .seconds(10))
         await clock.advance(by: .seconds(10))
-        await waitUntil { sut.state == .relaunchSuggested }
+        let reached = await waitUntil { sut.state == .relaunchSuggested }
+        XCTAssertTrue(reached, "state should reach the expected value within the deadline")
 
         sut.openSystemSettings()
         XCTAssertEqual(sut.state, .waitingForGrant)
@@ -280,7 +405,8 @@ final class SetupViewModelTests: XCTestCase {
         sut.startObserving()
         checker.trusted = true
         monitor.refresh()
-        await waitUntil { sut.state == .granted }
+        let reached = await waitUntil { sut.state == .granted }
+        XCTAssertTrue(reached, "state should reach the expected value within the deadline")
         XCTAssertEqual(sut.state, .granted)
         XCTAssertNil(monitor.onChange, "AppDelegate's onChange slot is left alone")
         sut.stopObserving()

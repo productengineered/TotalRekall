@@ -82,7 +82,7 @@ final class DiagnosticsRestoreTrailTests: XCTestCase {
         let coordinator = RestoreCoordinator(
             trust: TrailTrust(), displays: TrailDisplays(serials: serials),
             snapshots: TrailSnapshots(file: snapshotFile()),
-            learnedLayout: { MonitorLayout(origins: ["builtin": .init(x: 0, y: 0), "PANEL1": .init(x: 100, y: 0)]) },
+            learnedLayout: { _ in MonitorLayout(origins: ["builtin": .init(x: 0, y: 0), "PANEL1": .init(x: 100, y: 0)]) },
             fixer: TrailFixer(), topology: TrailTopology(), liveWindows: TrailLive(),
             restorer: TrailRestorer(), logWriter: TrailLogWriter(), capability: .full,
             now: { Date(timeIntervalSince1970: 1_000) }, diagnostics: recorder

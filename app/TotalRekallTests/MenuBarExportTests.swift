@@ -65,7 +65,7 @@ final class MenuBarExportTests: XCTestCase {
         exporter.result = .fallback(URL(fileURLWithPath: "/tmp/b.zip"))
         await sut.exportDiagnostics()
         XCTAssertEqual(revealer.revealed.count, 1)
-        XCTAssertEqual(sut.exportNotice, "Couldn't use the Desktop. Saved in Total Rekall's folder.")
+        XCTAssertEqual(sut.exportNotice, "Couldn't use the Desktop. Saved in TotalRekall's folder.")
     }
 
     func testFailureDoesNotRevealAndResetsExporting() async {

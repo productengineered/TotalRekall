@@ -20,7 +20,7 @@ enum ProblemNotificationPolicy {
         }
     }
 
-    static let title = "Total Rekall"
+    static let title = "TotalRekall"
 
     /// The notification text for an outcome that `shouldNotify` accepted.
     static func content(for outcome: RestoreOutcome) -> ProblemNotificationContent {

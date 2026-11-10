@@ -1,6 +1,6 @@
-# Total Rekall app
+# TotalRekall app
 
-This folder holds the Total Rekall macOS app.
+This folder holds the TotalRekall macOS app.
 
 - `project.yml` is the XcodeGen spec; `TotalRekall.xcodeproj` is generated from it (`xcodegen generate`).
 - `TotalRekall/` is the app target (menu bar app, SwiftUI and AppKit).

@@ -35,7 +35,7 @@ private actor ContextRestorer: AutoRestoring {
 }
 
 private actor QuietPause: SnapshotPauseControlling {
-    var learnedLayout: MonitorLayout { MonitorLayout(origins: [:]) }
+    func deskLookup(live: MonitorLayout) -> DeskLookup { .newDesk }
     func runScheduledSnapshot() {}
 }
 
@@ -141,10 +141,11 @@ final class AutomationTriggerTests: XCTestCase {
         let rig = makeRig(immediate: false)
         await rig.controller.start()
         var contexts: [CycleContext] = []
-        for _ in 0..<10_000 where contexts.isEmpty {
-            await Task.yield()
+        let arrived = await waitUntil {
             contexts = await rig.restorer.fixContexts
+            return !contexts.isEmpty
         }
+        XCTAssertTrue(arrived, "the launch check should have run the monitor step within the deadline")
         await rig.controller.stop()
         XCTAssertEqual(contexts.map(\.trigger), [.launch])
     }
@@ -163,10 +164,8 @@ final class AutomationTriggerTests: XCTestCase {
     func testQueuedFollowUpGetsANewCycleID() async {
         let rig = makeRig(blockFirst: true)
         await rig.fire()
-        for _ in 0..<10_000 {
-            if await rig.restorer.restoreContexts.count >= 1 { break }
-            await Task.yield()
-        }
+        let started = await waitUntil { await rig.restorer.restoreContexts.count >= 1 }
+        XCTAssertTrue(started, "the first restore should have started within the deadline")
         await rig.fire()                       // arrives during the restore: queues a follow-up
         await rig.restorer.unblock()
         await rig.controller.waitUntilIdle()

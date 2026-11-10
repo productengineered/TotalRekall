@@ -148,7 +148,7 @@ enum WindowCapturer {
     // MARK: Filtering
 
     /// Cheap pre-AX filter: layer 0, visible alpha, not tiny, has a bundle ID, and not owned by
-    /// `ownPID` (Total Rekall's own windows are never user windows to restore; CG also reports a
+    /// `ownPID` (TotalRekall's own windows are never user windows to restore; CG also reports a
     /// title for them when it reports none for other apps, so they would survive a collapsed AX join).
     /// Matched by pid, not bundle ID, so Debug and DMG builds are covered too.
     /// (Untitled windows are decided later, once AX matching is known.)

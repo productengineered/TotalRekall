@@ -5,10 +5,18 @@ import XCTest
 
 private actor FakePause: SnapshotPauseControlling {
     private(set) var scheduledSnapshots = 0
-    var learned: MonitorLayout
-    init(learned: MonitorLayout) { self.learned = learned }
+    /// Learned layouts by desk key, resolved with the production lookup rules.
+    private(set) var layouts: [String: MonitorLayout] = [:]
+    init(learned: MonitorLayout) { self.init(desks: [learned]) }
+    init(desks: [MonitorLayout]) {
+        for desk in desks {
+            if let key = DeskKey.make(for: desk) { layouts[key] = desk }
+        }
+    }
 
-    var learnedLayout: MonitorLayout { learned }
+    func deskLookup(live: MonitorLayout) -> DeskLookup {
+        DeskLookup.resolve(live: live, layouts: layouts)
+    }
     func runScheduledSnapshot() { scheduledSnapshots += 1 }
 }
 
@@ -114,9 +122,9 @@ final class AutomationControllerTests: XCTestCase {
 
     /// `immediate` clocks run every sleep at once (cycle runs straight to completion).
     private func makeRig(learned: [String] = ["A", "B"], live: [String] = ["A", "B"], trusted: Bool = true,
-                         immediate: Bool = true) -> Rig {
+                         immediate: Bool = true, otherDesks: [[String]] = []) -> Rig {
         let gate = SnapshotGate()
-        let pause = FakePause(learned: layout(learned))
+        let pause = FakePause(desks: ([learned] + otherDesks).map { layout($0) })
         let restorer = FakeRestorer(gate: gate)
         let status = FakeStatus(gate: gate)
         let clock = TestClock(immediate: immediate)
@@ -306,6 +314,77 @@ final class AutomationControllerTests: XCTestCase {
         }
     }
 
+    // MARK: - Per-desk learned layouts (per-desk layouts)
+
+    /// RCA (1): launched undocked (learned {builtin}), then docked to a set with no snapshot: a new
+    /// desk is a first run, so the gate reopens instead of holding layoutUnverified.
+    func testNewDeskWithNoSnapshotReopensGate() async {
+        let rig = makeRig(learned: ["builtin"], live: ["builtin", "X", "Y"])
+        await rig.restorer.setOutcome(.noSnapshot)
+        await rig.fire()
+        await rig.controller.waitUntilIdle()
+        XCTAssertTrue(rig.gate.isOpen)
+        XCTAssertNil(rig.gate.status.reason)
+    }
+
+    /// RCA (2): learned desk 1, docked at desk 2: the cycle waits for nothing, restores, and reopens.
+    func testSecondDeskIsNotHeldAsAbsent() async {
+        let rig = makeRig(learned: ["A", "B"], live: ["C", "D"])
+        await rig.fire()
+        await rig.controller.waitUntilIdle()
+        let restoreCalls = await rig.restorer.restoreCalls
+        XCTAssertEqual(restoreCalls, 1)
+        XCTAssertTrue(rig.gate.isOpen)
+    }
+
+    /// RCA (3) and C2 (11): back at desk 1 after desk 2, the swap check runs against desk 1's own
+    /// layout: a swapped desk 1 is held (not learned), and desk 2 verifies against desk 2's layout.
+    func testReturnToKnownDeskChecksItsOwnLayout() async {
+        let rig = makeRig(learned: ["A", "B"], live: ["C", "D"], otherDesks: [["C", "D"]])
+        await rig.restorer.setOutcome(.noSnapshot)
+        await rig.fire()
+        await rig.controller.waitUntilIdle()
+        XCTAssertTrue(rig.gate.isOpen, "desk 2 matches its own layout")
+
+        rig.live.set(MonitorLayout(origins: ["A": .init(x: 1000, y: 0), "B": .init(x: 0, y: 0)]))
+        await rig.fire()
+        await rig.controller.waitUntilIdle()
+        XCTAssertFalse(rig.gate.isOpen)
+        XCTAssertEqual(rig.gate.status.reason, .layoutUnverified)
+    }
+
+    /// C2 (9): a strict subset of a known desk waits, then holds; it is never treated as a new desk.
+    func testStrictSubsetOfKnownDeskHolds() async {
+        let rig = makeRig(learned: ["A", "B", "C"], live: ["A", "B"])
+        await rig.restorer.setOutcome(.noSnapshot)
+        await rig.fire()
+        await rig.controller.waitUntilIdle()
+        let restoreCalls = await rig.restorer.restoreCalls
+        XCTAssertEqual(restoreCalls, 0)
+        XCTAssertFalse(rig.gate.isOpen)
+        XCTAssertEqual(rig.gate.status.reason, .dockedSetAbsent)
+    }
+
+    /// C2 (10): a superset of a known desk (a projector added) is a new desk, not a hold.
+    func testSupersetOfKnownDeskIsNewDesk() async {
+        let rig = makeRig(learned: ["A", "B"], live: ["A", "B", "P"])
+        await rig.restorer.setOutcome(.noSnapshot)
+        await rig.fire()
+        await rig.controller.waitUntilIdle()
+        XCTAssertTrue(rig.gate.isOpen)
+    }
+
+    /// RCA (6): learned with the lid open {builtin, X, Y}, lid closed {X, Y}: same desk, not absent.
+    func testClamshellIsTheSameDesk() async {
+        let rig = makeRig(learned: ["builtin", "X", "Y"], live: [])
+        rig.live.set(MonitorLayout(origins: ["X": .init(x: 1000, y: 0), "Y": .init(x: 2000, y: 0)]))
+        await rig.restorer.setOutcome(.noSnapshot)
+        await rig.fire()
+        await rig.controller.waitUntilIdle()
+        XCTAssertTrue(rig.gate.isOpen)
+        XCTAssertNil(rig.gate.status.reason)
+    }
+
     /// Fix 2: DisplayMonitor settles and emits the event, but the gate stays closed until the
     /// controller has ingested it and finished the cycle. A snapshot attempted in that window (after
     /// settle, before ingest) is refused.
@@ -375,7 +454,7 @@ final class AutomationControllerTests: XCTestCase {
     }
 }
 
-// MARK: - Session hold (Bug 65)
+// MARK: - Session hold
 
 extension AutomationControllerTests {
     private struct SessionRig {

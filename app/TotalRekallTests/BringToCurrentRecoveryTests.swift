@@ -1,7 +1,7 @@
 import XCTest
 @testable import TotalRekall
 
-/// Regression tests for bug 34: Terminal window (empty title) ax-unreachable after bring-to-current.
+/// Regression tests: Terminal window (empty title) ax-unreachable after bring-to-current.
 
 /// Bring-to-current succeeds; the move back to the origin desktop can be made to fail.
 private actor ReturnTripSpaces: WindowSpaceMoving {

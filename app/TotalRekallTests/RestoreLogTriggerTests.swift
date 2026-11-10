@@ -43,3 +43,41 @@ final class RestoreLogTriggerTests: XCTestCase {
         XCTAssertEqual(loaded.cycleID, context.cycleID)
     }
 }
+
+// MARK: - Desk name (named desks)
+
+final class RestoreLogDeskNameTests: XCTestCase {
+    private let date = Date(timeIntervalSince1970: 1_000)
+
+    func testDeskNameIsWrittenNextToTheConfigKey() throws {
+        let log = RestoreLog(results: [], date: date, configKey: "cfg", capability: .full, layout: nil,
+                             deskName: "Studio")
+        let data = try JSONEncoder().encode(log)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["deskName"] as? String, "Studio")
+        XCTAssertEqual(json["configKey"] as? String, "cfg")
+        XCTAssertNotNil(json["capability"])
+        XCTAssertNotNil(json["counts"])
+    }
+
+    func testLogWithoutDeskNameStillDecodes() throws {
+        let log = RestoreLog(results: [], date: date, configKey: "cfg", capability: .full, layout: nil,
+                             deskName: "Studio")
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(log)) as? [String: Any])
+        json.removeValue(forKey: "deskName")
+        let decoded = try JSONDecoder().decode(RestoreLog.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertNil(decoded.deskName)
+        XCTAssertEqual(decoded.configKey, "cfg")
+    }
+
+    func testDeskNameRoundTripsAndReachesTheLastRestoreDetail() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = RestoreLogStore(directory: dir)
+        try store.write(RestoreLog(results: [], date: date, configKey: nil, capability: .full, layout: nil,
+                                   deskName: "Studio"))
+        let loaded = try store.load()
+        XCTAssertEqual(loaded.deskName, "Studio")
+        XCTAssertEqual(RestoreDetailFormatter.detail(from: loaded).deskName, "Studio")
+    }
+}

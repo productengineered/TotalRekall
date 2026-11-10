@@ -77,7 +77,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         hosting.sizingOptions = []   // the controller resizes explicitly so the top edge stays put
         let window = SetupWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
-        window.title = "Set Up Total Rekall"
+        window.title = "Set Up TotalRekall"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.standardWindowButton(.zoomButton)?.isEnabled = false   // zoom off, close + minimize on
@@ -91,7 +91,11 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     }
 
     private func handleCancel() {
-        if model.state == .granted { model.done() } else { model.skip() }
+        switch model.state {
+        case .granted: model.done()
+        case .namingDesk: model.leaveDeskStep()
+        default: model.skip()
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -109,7 +113,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     /// Every state x reason combination the view can render.
     static func allVariants(paneName: String) -> [SetupCopy] {
         let states: [SetupState] = [.needsPermission(.firstRun), .needsPermission(.revoked), .waitingForGrant,
-                                    .relaunchSuggested, .granted]
+                                    .relaunchSuggested, .granted, .namingDesk(.docked), .namingDesk(.undocked)]
         return states.flatMap { state in
             [SetupReason.firstRun, .revoked].map { SetupCopy(state: state, reason: $0, paneName: paneName) }
         }

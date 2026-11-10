@@ -102,7 +102,7 @@ final class RestoreResultSummaryTests: XCTestCase {
         XCTAssertNil(RestoreWindowResult.fromPlanOnly(planned(.frameFix(SnapshotFrame(x: 0, y: 0, width: 1, height: 1)))))
     }
 
-    // MARK: Attention rule (bug 33)
+    // MARK: Attention rule
 
     /// Attention only when the layout is likely wrong. Parameterized over the real UAT mix
     /// (restore-log 2026-11-06 08:03) and each condition that must still raise the icon.
@@ -219,7 +219,7 @@ final class RestoreResultSummaryTests: XCTestCase {
 extension RestoreResultSummaryTests {
     private static let own = "com.productengineered.TotalRekall"
 
-    /// One saved user window plus the matching result per status; `extraOwn` adds Total Rekall's own.
+    /// One saved user window plus the matching result per status; `extraOwn` adds TotalRekall's own.
     private func quietInput(
         trigger: CycleTrigger = .wake,
         eligibility: QuietWakeEligibility? = QuietWakeEligibility(displaysAddedOrRemoved: false,

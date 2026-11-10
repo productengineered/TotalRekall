@@ -69,7 +69,7 @@ final class RestoreMenuActionsTests: XCTestCase {
     }
 }
 
-// MARK: - Shrink notice wording (Bug 65 review advisory 4)
+// MARK: - Shrink notice wording (review advisory 4)
 
 @MainActor
 final class SavedAfterShrinkNoticeTests: XCTestCase {

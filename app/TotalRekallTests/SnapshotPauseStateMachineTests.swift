@@ -54,27 +54,33 @@ final class SnapshotPauseStateMachineTests: XCTestCase {
 
     func testGateRefusesWhilePausedWithReasonMessages() {
         var m = SnapshotPauseStateMachine()
-        let l = layout(["a", "b"])
-        XCTAssertEqual(SnapshotPolicy.decide(machine: m, learned: l, live: l), .allowed)
+        let l = DeskLookup(match: .knownDesk, layout: layout(["a", "b"]))
+        XCTAssertEqual(SnapshotPolicy.decide(machine: m, lookup: l), .allowed)
         m.handle(.displayCallback)
-        XCTAssertEqual(SnapshotPolicy.decide(machine: m, learned: l, live: l), .refused(.displayChangeInProgress))
+        XCTAssertEqual(SnapshotPolicy.decide(machine: m, lookup: l), .refused(.displayChangeInProgress))
         m.handle(.displaySettled(needsRestore: true))
-        XCTAssertEqual(SnapshotPolicy.decide(machine: m, learned: l, live: l), .refused(.awaitingRestore))
+        XCTAssertEqual(SnapshotPolicy.decide(machine: m, lookup: l), .refused(.awaitingRestore))
         m.handle(.restoreStarted)
-        XCTAssertEqual(SnapshotPolicy.decide(machine: m, learned: l, live: l), .refused(.restoring))
+        XCTAssertEqual(SnapshotPolicy.decide(machine: m, lookup: l), .refused(.restoring))
         for r in [SnapshotRefusal.displayChangeInProgress, .awaitingRestore, .restoring, .dockedSetAbsent,
                   .accessibilityMissing, .layoutUnverified] {
             XCTAssertFalse(r.message.isEmpty)
         }
     }
 
-    func testGateRefusesWhenDockedSetAbsent() {
+    /// Updated for per-desk layouts (per-desk layouts): only a strict subset of a learned desk refuses; a
+    /// superset or an unrelated set is a new desk and is allowed (it used to refuse).
+    func testGateRefusesOnlyStrictSubsetOfKnownDesk() {
         let m = SnapshotPauseStateMachine()
-        XCTAssertEqual(SnapshotPolicy.decide(machine: m, learned: layout(["a", "b", "c"]), live: layout(["a"])),
-                       .refused(.dockedSetAbsent))
-        // Superset (extra monitor) is fine; empty learned never blocks.
-        XCTAssertEqual(SnapshotPolicy.decide(machine: m, learned: layout(["a"]), live: layout(["a", "b"])), .allowed)
-        XCTAssertEqual(SnapshotPolicy.decide(machine: m, learned: layout([]), live: layout(["a"])), .allowed)
+        let desk = [DeskKey.make(for: layout(["a", "b", "c"]))!: layout(["a", "b", "c"])]
+        func decide(_ live: [String]) -> SnapshotGateDecision {
+            SnapshotPolicy.decide(machine: m, lookup: DeskLookup.resolve(live: layout(live), layouts: desk))
+        }
+        XCTAssertEqual(decide(["a"]), .refused(.dockedSetAbsent))
+        XCTAssertEqual(decide(["a", "b", "c"]), .allowed)
+        XCTAssertEqual(decide(["a", "b", "c", "d"]), .allowed)  // superset: new desk
+        XCTAssertEqual(decide(["x", "y"]), .allowed)            // another desk
+        XCTAssertEqual(SnapshotPolicy.decide(machine: m, lookup: .newDesk), .allowed)  // nothing learned
     }
 
     // MARK: - SnapshotGate (the write barrier the machine labels)
@@ -120,7 +126,7 @@ final class SnapshotPauseStateMachineTests: XCTestCase {
     }
 }
 
-// MARK: - SnapshotGate holds (Bug 65)
+// MARK: - SnapshotGate holds
 
 /// Readiness the test flips. Lock-protected so the observer's task can read it.
 final class FakeSessionReadiness: SessionReadinessProbing, Sendable {
@@ -222,7 +228,7 @@ private struct HoldCountingCapturer: SnapshotCapturing {
     }
 }
 
-// MARK: - SystemWakeObserver hold (Bug 65)
+// MARK: - SystemWakeObserver hold
 
 final class SystemWakeObserverHoldTests: XCTestCase {
     private func observer(gate: SnapshotGate, readiness: FakeSessionReadiness, clock: TestClock,
@@ -318,7 +324,7 @@ final class SystemWakeObserverHoldTests: XCTestCase {
     }
 }
 
-// MARK: - System wake with the screens still asleep (Bug 65 review advisory 1)
+// MARK: - System wake with the screens still asleep (review advisory 1)
 
 extension SystemWakeObserverHoldTests {
     /// A system wake (or an unlock hint) while the screens stay asleep never starts the bounded check,

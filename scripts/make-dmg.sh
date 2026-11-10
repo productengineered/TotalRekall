@@ -23,11 +23,23 @@ done
 
 die() { echo "error: $*" >&2; exit 1; }
 
+# Fail unless the signed app has the hardened runtime flag and no get-task-allow entitlement.
+verify_hardening() {
+  local app="$1" info ents
+  info="$(codesign -dv "$app" 2>&1)" || die "codesign -dv failed for $app"
+  printf '%s\n' "$info" | grep -E '^CodeDirectory' | grep -q 'runtime' \
+    || die "hardened runtime flag missing from signature of $app"
+  ents="$(codesign -d --entitlements - "$app" 2>&1)" || die "codesign entitlement inspection failed for $app"
+  if printf '%s\n' "$ents" | grep -q 'get-task-allow'; then
+    die "get-task-allow entitlement present in $app"
+  fi
+}
+
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/totalrekall-dmg.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 # Same ad-hoc settings as scripts/install.sh --adhoc.
-SIGN_ARGS=(CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES DEVELOPMENT_TEAM=)
+SIGN_ARGS=(CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES DEVELOPMENT_TEAM= "OTHER_CODE_SIGN_FLAGS=--options runtime")
 
 echo "==> Building Release (ad-hoc)"
 xcodebuild -project "$PROJECT" -scheme "$APP_NAME" -configuration Release \
@@ -38,6 +50,7 @@ BUILT="${WORK}/derived/Build/Products/Release/${APP_NAME}.app"
 
 echo "==> Verifying built signature"
 codesign --verify --deep --strict "$BUILT" || die "built app failed signature verification"
+verify_hardening "$BUILT"
 
 PLIST="${BUILT}/Contents/Info.plist"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
@@ -52,6 +65,6 @@ ln -s /Applications "${STAGING}/Applications"
 
 OUT="${DIST}/${APP_NAME}-${VERSION}.dmg"
 echo "==> Creating ${OUT}"
-hdiutil create -volname "Total Rekall" -srcfolder "$STAGING" -ov -format UDZO "$OUT"
+hdiutil create -volname "TotalRekall" -srcfolder "$STAGING" -ov -format UDZO "$OUT"
 
 echo "==> DMG ready: ${OUT}"

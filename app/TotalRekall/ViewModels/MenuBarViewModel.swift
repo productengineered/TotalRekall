@@ -40,11 +40,13 @@ final class MenuBarViewModel {
     private(set) var lastRestoreUnreadable = false
     /// Bumped per load request; only the newest request may publish (last writer wins).
     private var detailGeneration = 0
+    /// Cached desk list for the Desks submenu (refreshed off menuWillOpen; no I/O when the menu opens).
+    private(set) var desks: [DeskSummary] = []
 
     static let exportTitle = "Export Diagnostics…"
     static let exportingTitle = "Exporting Diagnostics…"
     static let exportDesktopNotice = "Diagnostics saved to the Desktop"
-    static let exportFallbackNotice = "Couldn't use the Desktop. Saved in Total Rekall's folder."
+    static let exportFallbackNotice = "Couldn't use the Desktop. Saved in TotalRekall's folder."
     static let exportFailedNotice = "Export failed"
 
     // MARK: Dependencies
@@ -55,6 +57,9 @@ final class MenuBarViewModel {
     private let revealer: FileRevealing?
     private let detailLoader: LastRestoreDetailLoading
     private let snapshotDateLoader: LastSnapshotDateLoading
+    private let deskActions: DeskActions
+    /// Called after a desk is forgotten, so the new-desk prompt can treat it as new again.
+    var onDeskForgotten: (@MainActor (String) -> Void)?
 
     init(
         snapshotActions: SnapshotActions = StubSnapshotActions(),
@@ -63,8 +68,10 @@ final class MenuBarViewModel {
         exporter: DiagnosticsExporting = StubDiagnosticsExporter(),
         revealer: FileRevealing? = nil,
         detailLoader: LastRestoreDetailLoading = StubLastRestoreDetailLoader(),
-        snapshotDateLoader: LastSnapshotDateLoading = StubLastSnapshotDateLoader()
+        snapshotDateLoader: LastSnapshotDateLoading = StubLastSnapshotDateLoader(),
+        deskActions: DeskActions = StubDeskActions()
     ) {
+        self.deskActions = deskActions
         self.snapshotActions = snapshotActions
         self.restoreActions = restoreActions
         self.logProvider = logProvider
@@ -142,16 +149,23 @@ final class MenuBarViewModel {
         case .accessibilityMissing: return "Accessibility access needed"
         case .restoring: return "Restoring windows…"
         case .pausedDisplayChange: return "Paused — display change in progress"
-        case .pausedDeskAbsent: return "Paused — desk monitors not connected"
+        case .pausedDeskAbsent: return "Paused — \(deskLabel(fallback: "desk")) monitors not connected"
         case .pausedLayoutUnverified: return "Paused — monitor layout not verified"
         case .pausedScreensAsleep: return "Paused — screens are off"
         case .pausedWaitingForWindows: return "Paused — waiting for your windows after wake"
         case .attention: return "Needs attention — see Last restore"
         case .autoRestoreOff: return "Auto-restore is off"
         case .watching(let date?):
-            return "Watching your desk · last snapshot \(Self.relativeAge(of: date, now: now, locale: locale))"
-        case .watching(nil): return "Watching your desk · no snapshot yet"
+            return "Watching \(deskLabel(fallback: "your desk")) · last snapshot "
+                + Self.relativeAge(of: date, now: now, locale: locale)
+        case .watching(nil): return "Watching \(deskLabel(fallback: "your desk")) · no snapshot yet"
         }
+    }
+
+    /// The current desk's name where a desk is connected and named, else the plain wording. Never a key.
+    private func deskLabel(fallback: String) -> String {
+        guard let name = currentDesk?.name, !name.isEmpty else { return fallback }
+        return name
     }
 
     /// "just now" under a minute, otherwise a short locale-aware relative phrase ("4 min. ago").
@@ -234,6 +248,77 @@ final class MenuBarViewModel {
         lastRestoreUnreadable = false
     }
 
+    // MARK: Desks (named desks)
+
+    /// The desk whose monitors are connected now; nil with the built-in display alone.
+    var currentDesk: DeskSummary? { desks.first(where: \.isCurrent) }
+    /// Rename stays available while a restore runs; the other two need an idle, trusted app.
+    var isRenameDeskEnabled: Bool { currentDesk != nil }
+    var isSaveArrangementEnabled: Bool { currentDesk != nil && accessibilityGranted && !isWorking }
+    var isForgetDeskEnabled: Bool { currentDesk != nil && !isWorking }
+
+    /// Everything the Desks submenu shows, from cached state (no I/O when the menu opens).
+    var desksMenuState: DesksMenuState {
+        DesksMenuState(
+            desks: desks.map { DesksMenuState.Entry(id: $0.id, name: $0.name, isCurrent: $0.isCurrent) },
+            isTrusted: accessibilityGranted, isBusy: isWorking, notice: desksNotice)
+    }
+
+    /// One-shot line under Desks ("Saved this arrangement for Studio"); cleared when the menu closes.
+    private(set) var desksNotice: String?
+    private var desksNoticeShown = false
+
+    func markDesksNoticeShown() { desksNoticeShown = true }
+
+    /// Save Current Arrangement for the desk that is current when the item is clicked.
+    func saveCurrentArrangement() async {
+        guard isSaveArrangementEnabled, let desk = currentDesk else { return }
+        switch await saveDeskArrangement(desk.id) {
+        case .saved: desksNotice = "Saved this arrangement for \(desk.name)"
+        case .refused(let message), .failed(let message): desksNotice = message
+        case .notCurrentDesk: desksNotice = "These monitors are no longer connected"
+        }
+        desksNoticeShown = false
+    }
+
+    func refreshDesks() async {
+        desks = await deskActions.deskSummaries()
+    }
+
+    /// Live names of every desk except `key`, for a name field's duplicate check.
+    func deskNames(excluding key: String) -> [String] {
+        desks.filter { $0.id != key }.map(\.name)
+    }
+
+    func renameDesk(_ key: String, to name: String) async -> DeskRenameResult {
+        let result = await deskActions.renameDesk(key, to: name)
+        await refreshDesks()
+        return result
+    }
+
+    /// Re-learn plus snapshot now for the desk captured by the caller. Refused while untrusted or busy.
+    func saveDeskArrangement(_ key: String) async -> DeskArrangementResult {
+        guard accessibilityGranted else { return .refused(SnapshotRefusal.accessibilityMissing.message) }
+        guard !isWorking else { return .refused(SnapshotRefusal.restoring.message) }
+        return await deskActions.saveDeskArrangement(key)
+    }
+
+    /// Save this desk? / setup step: name the desk, then save its arrangement. The arrangement is
+    /// saved only if the connected monitors are still that desk (the engine checks); a rename the
+    /// rules refuse returns that problem and saves nothing.
+    func nameDesk(_ key: String, as name: String) async -> DeskArrangementResult? {
+        guard case .renamed = await renameDesk(key, to: name) else { return nil }
+        return await saveDeskArrangement(key)
+    }
+
+    func forgetDesk(_ key: String) async -> Bool {
+        guard !isWorking else { return false }
+        let forgotten = await deskActions.forgetDesk(key)
+        if forgotten { onDeskForgotten?(key) }
+        await refreshDesks()
+        return forgotten
+    }
+
     // MARK: Actions
     func saveNow() async {
         guard isSaveEnabled else { return }
@@ -273,6 +358,10 @@ final class MenuBarViewModel {
     func markExportNoticeShown() { exportNoticeShown = true }
 
     func clearShownNotices() {
+        if desksNoticeShown {
+            desksNotice = nil
+            desksNoticeShown = false
+        }
         if exportNoticeShown {
             exportNotice = nil
             exportNoticeShown = false

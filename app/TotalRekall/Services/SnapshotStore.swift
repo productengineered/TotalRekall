@@ -34,7 +34,7 @@ struct SnapshotCorruptRecoveryInfo: Equatable, Sendable {
 
 /// Atomic, guarded JSON store for snapshots.json. The directory is injected for tests.
 ///
-/// Shrink rule (Bug 65, PRD FR-19): a capture below 50% of the stored count is never written on first
+/// Shrink rule (PRD FR-19): a capture below 50% of the stored count is never written on first
 /// sight. It is held in memory (per key) and committed only when a second capture agrees with it
 /// (within `shrinkAgreement`) at least `shrinkConfirmationGap` later, so a user who really closed
 /// windows converges in one scheduler interval while a one-off bad capture never becomes the restore
@@ -229,6 +229,25 @@ actor SnapshotStore {
         config.windows = []
         file.configurations[key] = config
         try atomicReplace(with: try encode(file))
+    }
+
+    /// Forget Desk: deletes every saved configuration whose panel set is the desk `deskKey` (matched as
+    /// `DeskKey.make` of the configuration's displays, so lid-open and lid-closed variants both go).
+    /// The previous file is kept as last-good first, like `clearConfig`. Returns how many were removed.
+    @discardableResult
+    func removeConfigurations(forDesk deskKey: String) throws -> Int {
+        var file = try load()
+        let doomed = file.configurations.filter {
+            DeskKey.make(for: MonitorLayout.from(snapshotDisplays: $0.value.displays)) == deskKey
+        }.map(\.key)
+        guard !doomed.isEmpty else { return 0 }
+        try preserveLastGood()
+        for key in doomed {
+            file.configurations[key] = nil
+            pendingShrinks[key] = nil
+        }
+        try atomicReplace(with: try encode(file))
+        return doomed.count
     }
 
     /// Reads the last-good copy if present.

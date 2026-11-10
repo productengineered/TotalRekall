@@ -21,6 +21,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var onMenuWillOpen: (@MainActor () -> Void)?
     /// The "Accessibility access needed" item opens (or fronts) the setup window.
     var onShowSetup: (@MainActor () -> Void)?
+    /// "Rename…" in the Desks submenu: opens the Rename window for the current desk (connected by the
+    /// rename window controller; a no-op until then).
+    var onRenameDesk: (@MainActor (DeskSummary) -> Void)?
+    /// Hosts the Forget Desk… confirmation (an opaque window like the other TotalRekall windows).
+    /// Injectable for tests.
+    var forgetPresenter: ForgetDeskPresenting = ForgetDeskWindowController()
+    private weak var statusLineItem: NSMenuItem?
+    private weak var desksParentItem: NSMenuItem?
+    private var isMenuOpen = false
+
+    /// AXID.swift is shared with the parallel setup work; move this constant there with the next AXID edit.
 
     private static let accessibilityPaneURL = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
@@ -35,7 +46,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
         statusItem.menu = menu
         statusItem.button?.setAccessibilityIdentifier(AXID.Menu.statusItem)
-        statusItem.button?.setAccessibilityLabel("Total Rekall")
+        statusItem.button?.setAccessibilityLabel("TotalRekall")
         animator = StatusIconAnimator { [weak self] in self?.refreshIcon() }
         // Never leave the animation timer running as the app quits.
         terminationObserver = NotificationCenter.default.addObserver(
@@ -69,22 +80,39 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         let value = viewModel.accessibilityValue
         button.setAccessibilityValue(value)
-        button.toolTip = "Total Rekall: \(value)"
+        button.toolTip = "TotalRekall: \(value)"
         let badge = StatusIcon.badge(iconName: viewModel.iconName, animates: viewModel.iconAnimates)
         animator?.setWorking(badge == .working)
         let frame = animator?.mode == .animating ? animator?.frame : nil
-        button.image = StatusIcon.image(badge: badge, description: "Total Rekall", workingFrame: frame)
+        button.image = StatusIcon.image(badge: badge, description: "TotalRekall", workingFrame: frame)
     }
 
     // MARK: NSMenuDelegate
 
     func menuWillOpen(_ menu: NSMenu) {
         onMenuWillOpen?()
+        isMenuOpen = true
         rebuild(menu)
+        // The list is cached; refresh it now and update the open menu in place (no I/O on open).
+        Task { @MainActor [weak self] in
+            await self?.viewModel.refreshDesks()
+            self?.refreshOpenDesks()
+        }
     }
 
     func menuDidClose(_ menu: NSMenu) {
+        isMenuOpen = false
         viewModel.clearShownNotices()
+    }
+
+    /// Re-renders the Desks submenu and the status line after the desk list refreshed under an open menu.
+    private func refreshOpenDesks() {
+        guard isMenuOpen else { return }
+        statusLineItem?.title = viewModel.statusLine
+        statusLineItem?.setAccessibilityLabel(viewModel.statusLine)
+        desksParentItem?.submenu = DesksMenuBuilder.makeSubmenu(
+            state: viewModel.desksMenuState, target: self, rename: #selector(renameDesk),
+            saveArrangement: #selector(saveDeskArrangement), forget: #selector(forgetDesk))
     }
 
     private func rebuild(_ menu: NSMenu) {
@@ -100,7 +128,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             relaunch.indentationLevel = 1
             menu.addItem(relaunch)
         } else {
-            menu.addItem(infoRow(vm.statusLine, id: AXID.Menu.statusLine))
+            let line = infoRow(vm.statusLine, id: AXID.Menu.statusLine)
+            statusLineItem = line
+            menu.addItem(line)
         }
         addLastRestore(to: menu, now: Date())
         menu.addItem(.separator())
@@ -132,12 +162,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
         menu.addItem(.separator())
 
+        desksParentItem = nil
+        if !vm.showsAccessibilityWarning {
+            let desksItems = DesksMenuBuilder.items(
+                state: vm.desksMenuState, target: self, rename: #selector(renameDesk),
+                saveArrangement: #selector(saveDeskArrangement), forget: #selector(forgetDesk))
+            desksItems.forEach { menu.addItem($0) }
+            desksParentItem = desksItems.first
+            if vm.desksMenuState.notice != nil { vm.markDesksNoticeShown() }
+        }
+
         let login = item("Launch at Login", id: AXID.Menu.launchAtLogin, action: #selector(toggleLaunchAtLogin))
         login.state = launchAtLogin.isEnabled ? .on : .off
         menu.addItem(login)
         menu.addItem(.separator())
 
-        menu.addItem(item("Quit Total Rekall", id: AXID.Menu.quit, action: #selector(quit), key: "q"))
+        menu.addItem(item("Quit TotalRekall", id: AXID.Menu.quit, action: #selector(quit), key: "q"))
     }
 
     /// "Last restore" line with a read-only per-app submenu, built from the view model's cache (no file I/O).
@@ -155,6 +195,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             sub.addItem(infoRow("Details unavailable — use Reveal Restore Log", id: AXID.Menu.lastRestoreUnavailable))
         } else if let detail = vm.lastRestoreDetail {
             sub.addItem(infoRow(vm.triggerLine(detail, now: now), id: AXID.Menu.lastRestoreTrigger))
+            if let desk = detail.deskName {
+                sub.addItem(infoRow("Desk: \(desk)", id: AXID.Menu.lastRestoreDesk))
+            }
             if let monitors = detail.monitorLine {
                 sub.addItem(infoRow(monitors, id: AXID.Menu.lastRestoreMonitors))
             }
@@ -203,6 +246,28 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func restoreNow() { Task { await viewModel.restoreNow() } }
     @objc private func fixMonitors() { Task { await viewModel.fixMonitors() } }
 
+    @objc private func renameDesk() {
+        guard let desk = viewModel.currentDesk else { return }
+        onRenameDesk?(desk)
+    }
+
+    @objc private func saveDeskArrangement() { Task { await viewModel.saveCurrentArrangement() } }
+
+    @objc private func forgetDesk() {
+        guard viewModel.isForgetDeskEnabled, let desk = viewModel.currentDesk else { return }
+        // An accessory app is not active when a menu item is clicked; bring the window to the front.
+        NSApp.activate()
+        let model = ForgetDeskModel(
+            deskName: desk.name,
+            onForget: { [weak self] in
+                self?.forgetPresenter.close()
+                guard let self else { return }
+                Task { _ = await self.viewModel.forgetDesk(desk.id) }
+            },
+            onCancel: { [weak self] in self?.forgetPresenter.close() })
+        forgetPresenter.show(model: model)
+    }
+
     @objc private func exportDiagnostics() { Task { await viewModel.exportDiagnostics() } }
 
     @objc private func revealLog() {
@@ -217,4 +282,85 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func quit() { NSApp.terminate(nil) }
 
     @objc private func relaunchApp() { AppRelauncher().relaunch() }
+}
+
+// MARK: - Desks submenu (named desks)
+
+/// Everything the Desks submenu shows, built from the view model's cached state.
+struct DesksMenuState: Equatable, Sendable {
+    struct Entry: Equatable, Sendable {
+        let id: String
+        let name: String
+        let isCurrent: Bool
+    }
+
+    let desks: [Entry]
+    let isTrusted: Bool
+    /// A restore or monitor fix is running.
+    let isBusy: Bool
+    /// One-shot, e.g. "Saved this arrangement for Studio".
+    let notice: String?
+
+    var current: Entry? { desks.first { $0.isCurrent } }
+}
+
+@MainActor
+enum DesksMenuBuilder {
+    /// The "Desks" parent followed by the optional indented notice.
+    static func items(state: DesksMenuState, target: AnyObject, rename: Selector,
+                      saveArrangement: Selector, forget: Selector) -> [NSMenuItem] {
+        let parent = NSMenuItem(title: "Desks", action: nil, keyEquivalent: "")
+        parent.setAccessibilityIdentifier(AXID.Menu.desks)
+        parent.isEnabled = true  // an enabled parent opens the submenu on hover
+        parent.submenu = makeSubmenu(state: state, target: target, rename: rename,
+                                     saveArrangement: saveArrangement, forget: forget)
+        guard let notice = state.notice else { return [parent] }
+        let noticeItem = NSMenuItem(title: notice, action: nil, keyEquivalent: "")
+        noticeItem.setAccessibilityIdentifier(AXID.Menu.desksNotice)
+        noticeItem.setAccessibilityLabel(notice)
+        noticeItem.indentationLevel = 1
+        noticeItem.isEnabled = false
+        return [parent, noticeItem]
+    }
+
+    static func makeSubmenu(state: DesksMenuState, target: AnyObject, rename: Selector,
+                            saveArrangement: Selector, forget: Selector) -> NSMenu {
+        let submenu = NSMenu(title: "Desks")
+        submenu.autoenablesItems = false
+        if state.desks.isEmpty {
+            submenu.addItem(infoLine("No desks yet", id: AXID.Menu.desksEmpty, checked: false))
+        } else {
+            for (index, desk) in state.desks.enumerated() {
+                submenu.addItem(infoLine(desk.name, id: "\(AXID.Menu.desksItem).\(index)", checked: desk.isCurrent))
+            }
+        }
+        submenu.addItem(.separator())
+        let hasCurrent = state.current != nil
+        submenu.addItem(actionItem("Rename…", id: AXID.Menu.desksRename, action: rename, target: target,
+                                   enabled: hasCurrent))
+        submenu.addItem(actionItem("Save Current Arrangement", id: AXID.Menu.desksSaveArrangement,
+                                   action: saveArrangement, target: target,
+                                   enabled: hasCurrent && state.isTrusted && !state.isBusy))
+        submenu.addItem(actionItem("Forget Desk…", id: AXID.Menu.desksForget, action: forget, target: target,
+                                   enabled: hasCurrent && !state.isBusy))
+        return submenu
+    }
+
+    private static func infoLine(_ title: String, id: String, checked: Bool) -> NSMenuItem {
+        let line = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        line.isEnabled = false
+        line.state = checked ? .on : .off
+        line.setAccessibilityIdentifier(id)
+        line.setAccessibilityLabel(title)
+        return line
+    }
+
+    private static func actionItem(_ title: String, id: String, action: Selector, target: AnyObject,
+                                   enabled: Bool) -> NSMenuItem {
+        let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        menuItem.target = target
+        menuItem.isEnabled = enabled
+        menuItem.setAccessibilityIdentifier(id)
+        return menuItem
+    }
 }

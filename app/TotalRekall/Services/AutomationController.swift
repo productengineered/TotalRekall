@@ -11,7 +11,7 @@
 // queues exactly one follow-up cycle (during the restore); the gate stays closed across both cycles.
 // Self-triggered changes never arrive here because DisplayMonitor suppresses them while MonitorFixer
 // runs.
-// Session hold (Bug 65): right before restoring, the cycle checks that other apps' windows can be read
+// Session hold: right before restoring, the cycle checks that other apps' windows can be read
 // (the capture's AX-join predicate). At the lock screen they cannot, and a restore would mark every
 // window ax-unreachable, so the cycle ends `.hold(.sessionNotReady)` with the gate still closed and
 // resumes (same context) once readiness passes, polled with a bounded backoff. After the bound it
@@ -43,11 +43,17 @@ extension AutoRestoring {
 
 extension RestoreCoordinator: AutoRestoring {}
 
-/// Snapshot side of automation (implemented by `SnapshotCoordinator`): the learned layout for the
-/// docked-set rule and the scheduler tick. Pausing is NOT here: it is the shared `SnapshotGate`.
+/// Snapshot side of automation (implemented by `SnapshotCoordinator`): the per-desk learned layout
+/// lookup for the docked-set rule and the scheduler tick. Pausing is NOT here: it is the shared `SnapshotGate`.
 protocol SnapshotPauseControlling: Sendable {
-    var learnedLayout: MonitorLayout { get async }
+    func deskLookup(live: MonitorLayout) async -> DeskLookup
     func runScheduledSnapshot() async
+    /// Registers the live desk when it is unseen and returns the new-desk event (nil otherwise).
+    func registerNewDesk(live: MonitorLayout) async -> NewDeskEvent?
+}
+
+extension SnapshotPauseControlling {
+    func registerNewDesk(live: MonitorLayout) async -> NewDeskEvent? { nil }
 }
 
 extension SnapshotCoordinator: SnapshotPauseControlling {}
@@ -146,6 +152,12 @@ actor AutomationController {
     private let wake: WakeTracking?
     private let now: @Sendable () -> Date
     private let diagnostics: DiagnosticsRecording
+    /// New-desk event sink (named desks). Synchronous and non-blocking by contract: the receiver hops to
+    /// the main actor itself, so a prompt that is never shown can never hold the cycle or the gate.
+    private let onNewDesk: (@Sendable (NewDeskEvent) -> Void)?
+    /// Called after a cycle's end reopened the gate (the whole display-change cycle, including any
+    /// follow-up, is over). Same contract as `onNewDesk`: synchronous, non-blocking, hops itself.
+    private let onGateReopened: (@Sendable () -> Void)?
     /// ID of the cycle currently running (events outside `runCycle` still carry it).
     private var activeCycleID: UUID?
 
@@ -192,8 +204,12 @@ actor AutomationController {
         now: @escaping @Sendable () -> Date = { Date() },
         diagnostics: DiagnosticsRecording = DiagnosticsLog.shared,
         sessionReadiness: SessionReadinessProbing? = nil,
-        sessionSchedule: SessionReadiness.Schedule = .standard
+        sessionSchedule: SessionReadiness.Schedule = .standard,
+        onNewDesk: (@Sendable (NewDeskEvent) -> Void)? = nil,
+        onGateReopened: (@Sendable () -> Void)? = nil
     ) {
+        self.onNewDesk = onNewDesk
+        self.onGateReopened = onGateReopened
         self.sessionReadiness = sessionReadiness
         self.sessionSchedule = sessionSchedule
         self.diagnostics = diagnostics
@@ -348,6 +364,7 @@ actor AutomationController {
             if gate.reopen(ifEpoch: ingestedEpoch) {
                 endRestorePhase()
                 diagnostics.record(.gateReopened(cycleID: context.cycleID, epoch: closedEpoch))
+                onGateReopened?()
             } else {
                 // A raw callback is still in the debounce; its event starts the next cycle.
                 endRestorePhase()
@@ -457,11 +474,23 @@ actor AutomationController {
             changePending = true  // a manual run owns the pipeline; retry once it is done
             return .hold(.restoring)
         case .noSnapshot:
-            // Nothing to restore: resume only if the live layout is verified against the learned one.
-            let learned = await pause.learnedLayout
-            let verified = learned.origins.isEmpty
-                || SwapDetector.detect(learned: learned, live: liveLayout()) == .correct
-            return verified ? .reopen : .hold(.layoutUnverified)
+            // Nothing to restore. A new desk is a first run: reopen so the next snapshot learns it.
+            // A known desk resumes only if the live layout is verified against that desk's own layout.
+            let live = liveLayout()
+            let lookup = await pause.deskLookup(live: live)
+            switch lookup.match {
+            case .newDesk:
+                // Register at event time and announce once; fire and forget, then reopen regardless.
+                if let event = await pause.registerNewDesk(live: live) {
+                    diagnostics.record(DiagnosticsEvent(.automation, "new-desk", fields: [:]))
+                    onNewDesk?(event)
+                }
+                return .reopen
+            case .subsetOfKnownDesk: return .hold(.dockedSetAbsent)
+            case .knownDesk:
+                let verified = SwapDetector.detect(learned: lookup.layout, live: live) == .correct
+                return verified ? .reopen : .hold(.layoutUnverified)
+            }
         }
     }
 }
@@ -523,9 +552,7 @@ extension AutomationController {
     }
 
     private func dockedSetPresent() async -> Bool {
-        let learned = await pause.learnedLayout
-        guard !learned.origins.isEmpty else { return true }
-        return Set(learned.origins.keys).isSubset(of: Set(liveLayout().origins.keys))
+        await pause.deskLookup(live: liveLayout()).match != .subsetOfKnownDesk
     }
 
     private func sleep(_ duration: Duration) async -> Bool {
@@ -538,7 +565,7 @@ extension AutomationController {
     }
 }
 
-// MARK: - Session hold (Bug 65)
+// MARK: - Session hold
 
 extension AutomationController {
     /// The session may be usable now (the screens hold cleared, or an unlock hint). Resumes a cycle held

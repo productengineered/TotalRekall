@@ -114,21 +114,15 @@ struct SnapshotPauseStateMachine: Equatable, Sendable {
 /// Pure snapshot policy: the pause label plus the docked-set rule. Write gating lives in `SnapshotGate`.
 enum SnapshotPolicy {
     /// Combines the pause state with the docked-set rule.
-    static func decide(
-        machine: SnapshotPauseStateMachine,
-        learned: MonitorLayout,
-        live: MonitorLayout
-    ) -> SnapshotGateDecision {
+    static func decide(machine: SnapshotPauseStateMachine, lookup: DeskLookup) -> SnapshotGateDecision {
         if let refusal = machine.pauseRefusal { return .refused(refusal) }
-        if let refusal = dockedSetRefusal(learned: learned, live: live) { return .refused(refusal) }
+        if let refusal = dockedSetRefusal(lookup: lookup) { return .refused(refusal) }
         return .allowed
     }
 
-    /// "Docked set" = the panel serials in the learned layout; if any is missing from the live layout,
-    /// snapshots stay paused. An empty learned layout (first run) never blocks, otherwise nothing could
-    /// ever be learned.
-    static func dockedSetRefusal(learned: MonitorLayout, live: MonitorLayout) -> SnapshotRefusal? {
-        guard !learned.origins.isEmpty else { return nil }
-        return Set(learned.origins.keys).isSubset(of: Set(live.origins.keys)) ? nil : .dockedSetAbsent
+    /// Only a strict subset of a learned desk (a monitor still waking, or unplugged) blocks snapshots.
+    /// A new desk never blocks, otherwise nothing could ever be learned there.
+    static func dockedSetRefusal(lookup: DeskLookup) -> SnapshotRefusal? {
+        lookup.match == .subsetOfKnownDesk ? .dockedSetAbsent : nil
     }
 }

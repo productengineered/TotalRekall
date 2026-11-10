@@ -1,7 +1,7 @@
 import XCTest
 @testable import TotalRekall
 
-/// Regression tests for bug 32: an Accessibility re-grant must be picked up by the poll without
+/// Regression tests: an Accessibility re-grant must be picked up by the poll without
 /// relaunch (an accessory app rarely receives didBecomeActive), and a relaunch path must exist.
 private final class MutableTrustChecker: AccessibilityTrustChecking, @unchecked Sendable {
     private let lock = NSLock()
@@ -17,7 +17,7 @@ private final class MutableTrustChecker: AccessibilityTrustChecking, @unchecked 
 @MainActor
 final class AccessibilityMonitorRegrantTests: XCTestCase {
     func testDefaultIntervalsMeetDetectionTargets() {
-        // Re-grant within 5 s and revocation within 3 s (bug 32 local checks).
+        // Re-grant within 5 s and revocation within 3 s (local checks).
         XCTAssertLessThanOrEqual(AccessibilityMonitor.defaultUntrustedPollInterval, .seconds(2))
         XCTAssertLessThanOrEqual(AccessibilityMonitor.defaultTrustedPollInterval, .seconds(3))
     }

@@ -24,6 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Created on first use; there is only ever one setup window.
     private var setupModel: SetupViewModel?
     private var setupController: SetupWindowController?
+    /// The engine side of named desks; the setup step's provider is built on it.
+    private var deskManager: DeskManaging?
+    /// Decides when "Save this desk?" appears and owns the Rename window.
+    private var deskPrompt: NewDeskPromptCoordinator?
 
     override init() {
         #if DEBUG
@@ -78,14 +82,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             snapshotActions: actions, restoreActions: actions, logProvider: RestoreLogFileProvider(),
             exporter: wiring.exporter, revealer: WorkspaceFileRevealer(),
             detailLoader: RestoreLogDetailLoader(),
-            snapshotDateLoader: SnapshotDateLoader()
+            snapshotDateLoader: SnapshotDateLoader(),
+            deskActions: DeskMenuActions(manager: wiring.snapshotCoordinator)
         )
         actions.viewModel = viewModel
         // After a relaunch the in-memory result is gone: fall back to restore-log.json.
         Task { [weak viewModel] in await viewModel?.refreshLastRestoreDetail() }
         Task { [weak viewModel] in await viewModel?.seedLastSnapshotDate() }
+        Task { [weak viewModel] in await viewModel?.refreshDesks() }
         menuActions = actions
         menuBarViewModel = viewModel
+        deskManager = wiring.snapshotCoordinator
+        let deskPrompt = makeDeskPrompt(actions: DeskMenuActions(manager: wiring.snapshotCoordinator),
+                                        viewModel: viewModel, snapshots: wiring.snapshotCoordinator)
+        self.deskPrompt = deskPrompt
 
         launchAtLoginService.selfHeal()
         statusItemController = StatusItemController(
@@ -107,7 +117,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                               notifier: ProblemNotifier()),
             liveLayout: { MonitorLayout.from(displays: LiveDisplayProvider().currentDisplays()) },
             wake: wakeObserver,
-            sessionReadiness: sessionReadiness
+            sessionReadiness: sessionReadiness,
+            // Fire-and-forget: hop to the main actor; a prompt that is never shown holds nothing.
+            onNewDesk: { [weak deskPrompt] event in
+                Task { @MainActor in deskPrompt?.deskDiscovered(event) }
+            },
+            // The new-desk event fires inside the dock-time cycle, while the gate is still closed (and a
+            // follow-up cycle can keep it closed for seconds). When the gate reopens the prompt is
+            // re-checked right then, instead of relying on a timer that may already have given up.
+            onGateReopened: { [weak deskPrompt] in
+                Task { @MainActor in deskPrompt?.reevaluate() }
+            }
         )
         automationController = automation
         wakeObserver.setSessionReadyHandler { await automation.sessionMayBeReady() }
@@ -118,10 +138,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             viewModel?.accessibilityGranted = trusted
             // Revocation re-shows setup once; a grant advances an open window.
             self?.setupViewModel().trustDidChange(trusted)
+            if trusted { self?.deskPrompt?.reevaluate() }
             DiagnosticsLog.shared.record(.accessibilityChanged(trusted: trusted))
             Task { await automation.accessibilityChanged(trusted: trusted) }
         }
         accessibilityMonitor.start()
+        statusItemController?.onRenameDesk = { [weak self] desk in self?.deskPrompt?.presentRename(for: desk) }
         statusItemController?.onShowSetup = { [weak self] in self?.setupViewModel().presentFromMenu() }
         statusItemController?.onMenuWillOpen = { [weak monitor = accessibilityMonitor, weak viewModel, gate = snapshotGate] in
             monitor?.refresh()
@@ -137,6 +159,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var previewingSetup = false
         #if DEBUG
         previewingSetup = SetupPreviewLauncher.runIfRequested()
+        // REC-6: raise the Save this desk? / Rename window on fake collaborators (never writes the store).
+        if DeskPreviewLauncher.runIfRequested() { previewingSetup = true }
         #endif
         if !previewingSetup { setupViewModel().evaluateLaunch() }
         #if DEBUG
@@ -150,11 +174,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
     }
 
+    /// Builds the prompt coordinator with the live gating conditions.
+    private func makeDeskPrompt(actions: DeskActions, viewModel: MenuBarViewModel,
+                                snapshots: SnapshotCoordinator) -> NewDeskPromptCoordinator {
+        let gate = snapshotGate
+        let monitor = accessibilityMonitor
+        let conditions = NewDeskPromptCoordinator.Conditions.live(
+            gate: gate, accessibility: monitor,
+            isSetupOpen: { [weak self] in self?.setupController?.isShown == true },
+            liveDeskKey: {
+                let live = MonitorLayout.from(displays: LiveDisplayProvider().currentDisplays())
+                return DeskKey.hasExternalPanel(live) ? DeskKey.make(for: live) : nil
+            })
+        let coordinator = NewDeskPromptCoordinator(
+            actions: actions, prompt: DeskNameWindowController(), rename: DeskNameWindowController(),
+            conditions: conditions, diagnostics: DiagnosticsLog.shared)
+        coordinator.onDesksChanged = { [weak viewModel] in await viewModel?.refreshDesks() }
+        // Forget Desk: a forgotten desk reconnected in the same run is prompted again.
+        viewModel.onDeskForgotten = { [weak coordinator] key in coordinator?.deskForgotten(key) }
+        announceForgottenDesks(from: snapshots, to: coordinator)
+        return coordinator
+    }
+
+    /// A forgotten desk that is still connected when the next snapshot is written gets the Save this desk? prompt.
+    private func announceForgottenDesks(from coordinator: SnapshotCoordinator, to prompt: NewDeskPromptCoordinator) {
+        Task { [weak prompt] in
+            await coordinator.setNewDeskHandler { event in
+                Task { @MainActor in prompt?.deskDiscovered(event) }
+            }
+        }
+    }
+
     /// The single setup model and window, created lazily.
     private func setupViewModel() -> SetupViewModel {
         if let setupModel { return setupModel }
         let model = SetupViewModel(status: accessibilityMonitor)
+        if let deskManager {
+            let service = SetupDeskService(
+                manager: deskManager,
+                liveLayout: { MonitorLayout.from(displays: LiveDisplayProvider().currentDisplays()) })
+            // The setup step owns the first desk (D9): a desk it handled is never prompted.
+            service.onHandled = { [weak self] key in self?.deskPrompt?.markHandled(key) }
+            model.deskProvider = service
+        }
         setupController = SetupWindowController(model: model)
+        // When setup closes, a desk that was waiting for the prompt gets its turn.
+        let controllerClose = model.onClose
+        model.onClose = { [weak self] in
+            controllerClose?()
+            self?.deskPrompt?.reevaluate()
+        }
         setupModel = model
         return model
     }
@@ -221,18 +290,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let displayProvider = LiveDisplayProvider()
         let axProbe = LiveAXWindowProbe()
         let service = SnapshotService(store: store, bridge: bridge)
-        let learnedStore = LearnedLayoutStore()
+        let learnedStore = LearnedLayoutStore(
+            seedSource: { try await store.load() },
+            defaults: .standard,
+            snapshotPruner: { deskKey in try await store.removeConfigurations(forDesk: deskKey) }
+        )
         let snapshotCoordinator = SnapshotCoordinator(
             capturer: service,
             gate: snapshotGate,
             learnedStore: learnedStore,
-            liveLayout: { MonitorLayout.from(displays: LiveDisplayProvider().currentDisplays()) }
+            liveLayout: { MonitorLayout.from(displays: LiveDisplayProvider().currentDisplays()) },
+            isTrusted: { SystemAccessibilityTrustChecker().isProcessTrusted() }
         )
         let restore = RestoreCoordinator(
             trust: SystemAccessibilityTrustChecker(),
             displays: displayProvider,
             snapshots: store,
-            learnedLayout: { await learnedStore.layoutForSwapCheck },
+            learnedLayout: { live in await learnedStore.layout(forLive: live) },
             fixer: MonitorFixer(suppressor: displayMonitor),
             topology: LiveSpaceTopologyProvider(bridge: bridge, displayProvider: displayProvider),
             liveWindows: LiveWindowStateProvider(bridge: bridge, windowList: LiveWindowListProvider(), axProbe: axProbe),
