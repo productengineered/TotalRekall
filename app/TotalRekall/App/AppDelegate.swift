@@ -94,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarViewModel = viewModel
         deskManager = wiring.snapshotCoordinator
         let deskPrompt = makeDeskPrompt(actions: DeskMenuActions(manager: wiring.snapshotCoordinator),
-                                        viewModel: viewModel)
+                                        viewModel: viewModel, snapshots: wiring.snapshotCoordinator)
         self.deskPrompt = deskPrompt
 
         launchAtLoginService.selfHeal()
@@ -175,7 +175,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Builds the prompt coordinator with the live gating conditions.
-    private func makeDeskPrompt(actions: DeskActions, viewModel: MenuBarViewModel) -> NewDeskPromptCoordinator {
+    private func makeDeskPrompt(actions: DeskActions, viewModel: MenuBarViewModel,
+                                snapshots: SnapshotCoordinator) -> NewDeskPromptCoordinator {
         let gate = snapshotGate
         let monitor = accessibilityMonitor
         let conditions = NewDeskPromptCoordinator.Conditions.live(
@@ -191,7 +192,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.onDesksChanged = { [weak viewModel] in await viewModel?.refreshDesks() }
         // Forget Desk: a forgotten desk reconnected in the same run is prompted again.
         viewModel.onDeskForgotten = { [weak coordinator] key in coordinator?.deskForgotten(key) }
+        announceForgottenDesks(from: snapshots, to: coordinator)
         return coordinator
+    }
+
+    /// A forgotten desk that is still connected when the next snapshot is written gets the Save this desk? prompt.
+    private func announceForgottenDesks(from coordinator: SnapshotCoordinator, to prompt: NewDeskPromptCoordinator) {
+        Task { [weak prompt] in
+            await coordinator.setNewDeskHandler { event in
+                Task { @MainActor in prompt?.deskDiscovered(event) }
+            }
+        }
     }
 
     /// The single setup model and window, created lazily.

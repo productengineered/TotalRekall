@@ -43,6 +43,13 @@ actor LearnedLayoutStore {
     private let snapshotPruner: (@Sendable (String) async throws -> Void)?
     /// Persisted desk names by desk key.
     private var names: [String: String]
+    /// Desks forgotten this run. Learning such a desk keeps its layout but does not register it: the
+    /// scheduled-snapshot path announces it as a new desk instead (`consumeForgotten`). In memory only:
+    /// the prune guarantees snapshots.json no longer holds the desk when Forget returns.
+    private var forgotten: Set<String> = []
+    /// Desks whose Forget is awaiting the prune. They are not announced until it finishes, because the
+    /// removal that follows would otherwise undo the announcement.
+    private var forgetting: Set<String> = []
 
     static let namesDefaultsKey = "com.productengineered.TotalRekall.deskNames"
 
@@ -94,8 +101,18 @@ actor LearnedLayoutStore {
         return token.commitIfValid {
             layouts[key] = newLayout
             learnedAt[key] = date
-            register(key: key)
+            registerIfAllowed(key: key, layout: newLayout)
         }
+    }
+
+    /// True once if the desk was forgotten and has now been learned again unregistered; the caller
+    /// announces it as a new desk. Cleared by the read so it is announced once.
+    func consumeForgotten(for layout: MonitorLayout) -> Bool {
+        guard let key = DeskKey.make(for: layout), forgotten.contains(key), !forgetting.contains(key) else {
+            return false
+        }
+        forgotten.remove(key)
+        return DeskKey.hasExternalPanel(layout)
     }
 
     /// Escape hatch if the user permanently changes a desk: forget everything learned.
@@ -103,6 +120,7 @@ actor LearnedLayoutStore {
         layouts = [:]
         learnedAt = [:]
         desks = []
+        forgotten = []
         names = [:]
         persistNames()
     }
@@ -146,7 +164,7 @@ actor LearnedLayoutStore {
         await seedIfNeeded()
         layouts[key] = live
         learnedAt[key] = date
-        register(key: key)
+        registerIfAllowed(key: key, layout: live)
         return true
     }
 
@@ -157,9 +175,14 @@ actor LearnedLayoutStore {
     func forget(deskKey key: String) async -> Bool {
         await seedIfNeeded()
         guard desks.contains(where: { $0.key == key }) || layouts[key] != nil else { return false }
+        // Marked before the prune is awaited so a snapshot saved in that window cannot re-register it.
+        forgotten.insert(key)
+        forgetting.insert(key)
+        defer { forgetting.remove(key) }
         do {
             try await snapshotPruner?(key)
         } catch {
+            forgotten.remove(key)
             Self.logger.error("desk kept, snapshots not pruned: \(String(describing: error), privacy: .public)")
             return false
         }
@@ -177,8 +200,16 @@ actor LearnedLayoutStore {
 
     // MARK: Seeding
 
+    /// Learning registers a desk only for a real docked desk (an external panel) that was not just
+    /// forgotten; the layout is stored either way for swap checks.
+    private func registerIfAllowed(key: String, layout: MonitorLayout) {
+        guard DeskKey.hasExternalPanel(layout), !forgotten.contains(key) else { return }
+        register(key: key)
+    }
+
     @discardableResult
     private func register(key: String) -> (desk: Desk, isNew: Bool) {
+        forgotten.remove(key)
         if let existing = desks.first(where: { $0.key == key }) { return (existing, false) }
         let name = names[key] ?? DeskNameRules.defaultName(existing: desks.map(\.name))
         let desk = Desk(key: key, name: name)
@@ -214,7 +245,7 @@ actor LearnedLayoutStore {
             if layouts[key] != nil, let existing = learnedAt[key], existing > config.lastSnapshotDate { continue }
             layouts[key] = layout
             learnedAt[key] = config.lastSnapshotDate
-            register(key: key)
+            registerIfAllowed(key: key, layout: layout)
         }
     }
 }

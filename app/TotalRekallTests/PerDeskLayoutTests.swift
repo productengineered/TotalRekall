@@ -135,7 +135,7 @@ final class PerDeskLayoutTests: XCTestCase {
         let result = await coord.saveManually()
         XCTAssertEqual(result, .saved(windowCount: 3))
         let desks = await store.desks
-        XCTAssertEqual(desks.count, 2)
+        XCTAssertEqual(desks.count, 1, "the built-in-only layout is kept but is not a desk")
     }
 
     /// C2 (9): a strict subset of a known desk writes no snapshot and learns no new desk.
@@ -216,4 +216,99 @@ final class PerDeskLayoutTests: XCTestCase {
         private var count = 0
         func bump() -> Int { lock.lock(); defer { lock.unlock() }; count += 1; return count }
     }
+
+    // MARK: Registration needs an external panel
+
+    func testBuiltinOnlyLayoutIsKeptButNeverRegisteredAsADesk() async throws {
+        let (key, builtinOnly) = config(["builtin"], windows: 2, date: 10)
+        let seeded = LearnedLayoutStore(seedSource: { SnapshotFile(configurations: [key: builtinOnly]) })
+        let seededLookup = await seeded.lookup(live: layout(["builtin"]))
+        XCTAssertEqual(seededLookup.match, .knownDesk)
+        let seededDesks = await seeded.desks
+        XCTAssertTrue(seededDesks.isEmpty)
+
+        let store = LearnedLayoutStore()
+        try await learn(layout(["builtin"]), into: store)
+        let relearned = await store.relearn(layout(["builtin"]), deskKey: DeskKey.make(for: layout(["builtin"])) ?? "")
+        XCTAssertTrue(relearned)
+        let storedLayout = await store.layout(forLive: layout(["builtin"]))
+        XCTAssertFalse(storedLayout.origins.isEmpty)
+        let desks = await store.desks
+        XCTAssertTrue(desks.isEmpty)
+
+        try await learn(layout(["A", "B"]), into: store)
+        let named = await store.desks.map(\.name)
+        XCTAssertEqual(named, ["Desk 1"])
+    }
+
+    // MARK: Forget holds
+
+    func testForgottenDeskIsNotSilentlyRegisteredByTheNextLearn() async throws {
+        let store = LearnedLayoutStore()
+        let docked = layout(["A", "B"])
+        try await learn(docked, into: store)
+        let key = try XCTUnwrap(DeskKey.make(for: docked))
+        let forgot = await store.forget(deskKey: key)
+        XCTAssertTrue(forgot)
+
+        try await learn(docked, into: store)
+        let afterLearn = await store.desks
+        XCTAssertTrue(afterLearn.isEmpty)
+        let announce = await store.consumeForgotten(for: docked)
+        XCTAssertTrue(announce)
+        let again = await store.consumeForgotten(for: docked)
+        XCTAssertFalse(again, "announced once")
+    }
+
+    func testSnapshotSavedWhileForgetIsPruningDoesNotResurrectTheDesk() async throws {
+        let docked = layout(["A", "B"])
+        let box = StoreBox()
+        let announcedDuringPrune = FlagBox()
+        let store = LearnedLayoutStore(snapshotPruner: { _ in
+            // A scheduled snapshot lands after the prune started and before the in-memory removal.
+            _ = await box.store?.learn(docked, ifGate: try XCTUnwrap(SnapshotGate().token()))
+            let announce = await box.store?.consumeForgotten(for: docked) ?? false
+            announcedDuringPrune.set(announce)
+        })
+        box.store = store
+        try await learn(docked, into: store)
+        let key = try XCTUnwrap(DeskKey.make(for: docked))
+        let forgot = await store.forget(deskKey: key)
+        XCTAssertTrue(forgot)
+        XCTAssertFalse(announcedDuringPrune.value, "no announcement while the prune is in flight")
+        let desks = await store.desks
+        XCTAssertTrue(desks.isEmpty)
+        let announce = await store.consumeForgotten(for: docked)
+        XCTAssertTrue(announce, "the next snapshot after the forget completes announces it")
+    }
+
+    func testFailedPruneKeepsTheDeskRegistered() async throws {
+        struct PruneFailure: Error {}
+        let store = LearnedLayoutStore(snapshotPruner: { _ in throw PruneFailure() })
+        let docked = layout(["A", "B"])
+        try await learn(docked, into: store)
+        let forgot = await store.forget(deskKey: try XCTUnwrap(DeskKey.make(for: docked)))
+        XCTAssertFalse(forgot)
+        try await learn(docked, into: store)
+        let desks = await store.desks
+        XCTAssertEqual(desks.count, 1)
+        let announce = await store.consumeForgotten(for: docked)
+        XCTAssertFalse(announce)
+    }
+}
+
+private final class StoreBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: LearnedLayoutStore?
+    var store: LearnedLayoutStore? {
+        get { lock.lock(); defer { lock.unlock() }; return value }
+        set { lock.lock(); value = newValue; lock.unlock() }
+    }
+}
+
+private final class FlagBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var flag = false
+    var value: Bool { lock.lock(); defer { lock.unlock() }; return flag }
+    func set(_ newValue: Bool) { lock.lock(); flag = newValue; lock.unlock() }
 }

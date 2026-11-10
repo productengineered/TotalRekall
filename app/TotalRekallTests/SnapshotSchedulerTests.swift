@@ -208,4 +208,39 @@ final class SnapshotSchedulerTests: XCTestCase {
         let learned = await store.desks
         XCTAssertTrue(learned.isEmpty)
     }
+
+    // MARK: Forget Desk holds
+
+    func testScheduledSnapshotAfterForgetPromptsInsteadOfSilentlyRegistering() async throws {
+        let docked = layout(["a", "b"])
+        let key = try XCTUnwrap(DeskKey.make(for: docked))
+        let cap = FakeCapturer()
+        await cap.setLayout(docked)
+        let gate = SnapshotGate()
+        let store = LearnedLayoutStore()
+        let coord = SnapshotCoordinator(capturer: cap, gate: gate, learnedStore: store, liveLayout: { docked })
+        let events = EventBox()
+        await coord.setNewDeskHandler { events.add($0) }
+
+        await coord.runScheduledSnapshot()
+        XCTAssertTrue(events.value.isEmpty, "the first learn of a desk is the ordinary registration")
+        let registered = await store.desks
+        XCTAssertEqual(registered.map(\.key), [key])
+
+        let forgot = await coord.forgetDesk(key)
+        XCTAssertTrue(forgot)
+        await coord.runScheduledSnapshot()
+
+        XCTAssertEqual(events.value.map(\.key), [key])
+        XCTAssertEqual(events.value.first?.name, "Desk 1")
+        await coord.runScheduledSnapshot()
+        XCTAssertEqual(events.value.count, 1, "announced once")
+    }
+}
+
+private final class EventBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [NewDeskEvent] = []
+    var value: [NewDeskEvent] { lock.lock(); defer { lock.unlock() }; return events }
+    func add(_ event: NewDeskEvent) { lock.lock(); events.append(event); lock.unlock() }
 }

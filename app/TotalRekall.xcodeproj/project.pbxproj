@@ -318,6 +318,7 @@
 			isa = PBXGroup;
 			children = (
 				E3A19BA90E104FB76A98E933 /* AccessibilityMonitor.swift */,
+				C98D73B9E1F7893917699F6D /* DeskNameRules.swift */,
 				627B13597E7498DBEBD41270 /* AppRelauncher.swift */,
 				7EEEFC50581788CCC8905602 /* AutomationController.swift */,
 				58F06534A350BF3D2A162EE4 /* AXFrameWriter.swift */,
@@ -486,7 +487,6 @@
 			children = (
 				2043C7DA7A884FB8131F001A /* DeskNameField.swift */,
 				EE111C4170FAE705DDC5885C /* DeskNameModel.swift */,
-				C98D73B9E1F7893917699F6D /* DeskNameRules.swift */,
 				87B9993CB1EB61B50768903E /* DeskNameView.swift */,
 				21F6B620E2172BCF653562BD /* DeskNameWindowController.swift */,
 				670AF1E8A03405598B64DC98 /* DeskPreview.swift */,

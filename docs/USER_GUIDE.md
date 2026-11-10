@@ -56,7 +56,8 @@ Accessibility is the macOS permission that lets an app move other apps' windows.
 1. When you first open the app, a window titled **Let TotalRekall arrange your windows** appears.
 2. Click **Open System Settings**. This opens System Settings > Privacy & Security > Accessibility.
 3. In the list, switch on **TotalRekall**. Enter your password if asked.
-4. Go back to the setup window. It updates by itself and changes to **You're all set**. Click **Done**.
+4. Go back to the setup window. It updates by itself and changes to **You're all set**. Click **Continue**.
+5. The last step is **Name this desk** (see "Named desks" below). Type a name for the monitors you are using now and click **Save**. If your Mac is not connected to your external monitors right now, the step says **Name your desk** instead and TotalRekall asks for the name the first time you connect them. Click **Done**.
 
 If the setup window instead says **Already granted? Relaunch to finish enabling**, macOS has not yet told the app about the permission. Click **Relaunch**. The app quits and opens again.
 
@@ -69,13 +70,26 @@ If you later switch Accessibility off, the window comes back with **TotalRekall 
 - A **bear icon** in the menu bar. While the app is restoring windows, the bear animates (it stays still if you have Reduce Motion turned on).
 - Click the bear. The top line tells you what the app is doing. Normal lines are:
   - `Watching your desk · last snapshot 4 min. ago`
+  - `Watching Studio · last snapshot 4 min. ago` (once you have named the desk "Studio", its name replaces "your desk")
   - `Watching your desk · no snapshot yet` (right after the first start)
   - `Restoring windows…`
   - `Paused — display change in progress`, `Paused — desk monitors not connected`, `Paused — monitor layout not verified`. These are not errors. The app waits so it does not save a wrong layout.
 - Under it, a **Last restore** line, for example `Last restore: 7 of 7 windows, 2:35 PM`. Hover over it to open a small list showing what triggered the restore and what happened to each app. Before the first restore it says `No restore yet`.
-- Other menu items: **Save Snapshot Now**, **Restore Now**, **Fix Monitors**, **Reveal Restore Log**, **Export Diagnostics…**, **Launch at Login**, **Quit TotalRekall**.
+- Other menu items: **Desks** (see "Named desks" below), **Save Snapshot Now**, **Restore Now**, **Fix Monitors**, **Reveal Restore Log**, **Export Diagnostics…**, **Launch at Login**, **Quit TotalRekall**.
 
 Nothing else needs doing. Dock and undock as usual.
+
+## Named desks
+
+A desk is one set of monitors you dock to, for example the screens at your office. TotalRekall remembers a separate window layout for each desk and shows the desk's name in the menu.
+
+**Save this desk?** The first time you connect monitors TotalRekall has not seen before, a window titled **Save this desk?** appears. It says the monitors are new and asks you to check that they are arranged the way you like. The name field starts with a suggestion such as `Desk 2`. Type your own name, then click **Save**. Click **Not Now** to close the window and keep the suggested name; you can rename it later.
+
+**The Desks menu.** Click the bear, then **Desks**. The submenu lists your desks, with a check mark beside the one connected now. Below the list are three actions. They work on the desk that is connected now, so they are greyed out when you are not docked:
+
+- **Rename…** opens a window to change the desk's name.
+- **Save Current Arrangement** remembers how your monitors are arranged right now and takes a snapshot of your windows.
+- **Forget Desk…** asks for confirmation. If you click **Forget Desk**, TotalRekall stops restoring windows on that desk and deletes its saved window layout. While those monitors stay connected, the **Save this desk?** window appears again after the next automatic snapshot. Click **Cancel** to keep the desk.
 
 ## The attention badge and notifications
 

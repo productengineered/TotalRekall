@@ -79,6 +79,7 @@ actor SnapshotCoordinator {
     private let learnedStore: LearnedLayoutStore
     private let liveLayout: @Sendable () -> MonitorLayout
     private var saveObserver: (@Sendable () async -> Void)?
+    private var newDeskHandler: (@Sendable (NewDeskEvent) -> Void)?
     private let diagnostics: DiagnosticsRecording
     private let isTrusted: (@Sendable () -> Bool)?
 
@@ -109,6 +110,12 @@ actor SnapshotCoordinator {
     /// the menu's Restore Now availability.
     func setSaveObserver(_ observer: @escaping @Sendable () async -> Void) {
         saveObserver = observer
+    }
+
+    /// Receives the new-desk event for a forgotten desk that is still connected when the next snapshot
+    /// is written. Same contract as the automation controller's: synchronous, non-blocking.
+    func setNewDeskHandler(_ handler: @escaping @Sendable (NewDeskEvent) -> Void) {
+        newDeskHandler = handler
     }
 
     // MARK: Snapshots
@@ -185,7 +192,11 @@ actor SnapshotCoordinator {
                 return .heldForConfirmation
             case .written, .writtenKeepingLastGood:
                 recordWritten(result)
-                await learnedStore.learn(result.layout, ifGate: token)
+                if await learnedStore.learn(result.layout, ifGate: token),
+                   await learnedStore.consumeForgotten(for: result.layout),
+                   let event = await registerNewDesk(live: result.layout) {
+                    newDeskHandler?(event)
+                }
                 await saveObserver?()
                 if case .writtenKeepingLastGood(let prior, let new) = result.outcome {
                     return .savedAfterShrink(new, prior: prior)
