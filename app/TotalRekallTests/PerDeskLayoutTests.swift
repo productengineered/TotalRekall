@@ -134,8 +134,9 @@ final class PerDeskLayoutTests: XCTestCase {
                                         liveLayout: { docked })
         let result = await coord.saveManually()
         XCTAssertEqual(result, .saved(windowCount: 3))
-        let desks = await store.desks
-        XCTAssertEqual(desks.count, 1, "the built-in-only layout is kept but is not a desk")
+        let deskKeys = await store.desks.map(\.key)
+        XCTAssertEqual(deskKeys, [DeskKey.make(for: docked)].compactMap { $0 },
+                       "only the docked desk is registered; the built-in-only layout is kept but is not a desk")
     }
 
     /// C2 (9): a strict subset of a known desk writes no snapshot and learns no new desk.

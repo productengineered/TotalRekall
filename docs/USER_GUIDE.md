@@ -89,7 +89,9 @@ A desk is one set of monitors you dock to, for example the screens at your offic
 
 - **Rename…** opens a window to change the desk's name.
 - **Save Current Arrangement** remembers how your monitors are arranged right now and takes a snapshot of your windows.
-- **Forget Desk…** asks for confirmation. If you click **Forget Desk**, TotalRekall stops restoring windows on that desk and deletes its saved window layout. While those monitors stay connected, the **Save this desk?** window appears again after the next automatic snapshot. Click **Cancel** to keep the desk.
+- **Forget Desk…** asks for confirmation. If you click **Forget Desk**, TotalRekall clears the desk's name and its saved window layout. It then treats those monitors as a new desk and keeps working: if they stay connected, the next automatic snapshot saves a fresh layout, and the **Save this desk?** window appears after it. Restores use that new layout even if you click **Not Now**. Click **Cancel** to keep the desk.
+
+  Before it deletes the layout, TotalRekall copies the old saved layouts to `snapshots.last-good.json` in `~/Library/Application Support/TotalRekall`. That backup keeps the forgotten desk's window layout (app names and window titles) until a later Forget Desk, or a snapshot that saves far fewer windows than before, replaces it. To remove it now, quit the app and delete that file, or delete the whole folder as described in "Quit and uninstall" below.
 
 ## The attention badge and notifications
 
