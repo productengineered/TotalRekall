@@ -16,7 +16,7 @@ TotalRekall is a small menu bar app (a bear icon). When you dock or undock your 
 
 ## Install A: the disk image (recommended)
 
-You need a disk image file named like `TotalRekall-1.0.dmg`. You can build one with `scripts/make-dmg.sh`.
+You need a disk image file named like `TotalRekall-0.1.1.dmg`. Download it from the [latest release](https://github.com/productengineered/TotalRekall/releases/latest), or build one yourself with `scripts/make-dmg.sh`.
 
 1. Double-click the `.dmg` file. A window named **TotalRekall** opens.
 2. Drag **TotalRekall** onto the **Applications** folder shown in that window.
