@@ -144,7 +144,7 @@ final class RestoreCoordinatorTests: XCTestCase {
     ) -> RestoreCoordinator {
         RestoreCoordinator(
             trust: FakeTrust(trusted: trusted), displays: FakeDisplays(serials: serials),
-            snapshots: FakeSnapshots(file: file ?? snapshotFile()), learnedLayout: { learned },
+            snapshots: FakeSnapshots(file: file ?? snapshotFile()), learnedLayout: { _ in learned },
             fixer: FakeFixer(log: log, outcome: fix, learnedLog: learnedLog), topology: FakeTopology(log: log),
             liveWindows: FakeLive(log: log),
             restorer: restorer ?? FakeRestorer(log: log, statuses: [.moved, .moved]),
@@ -178,8 +178,8 @@ final class RestoreCoordinatorTests: XCTestCase {
         let sut = makeSUT(log: log, restorer: restorer)
 
         let first = Task { await sut.restoreNow() }
-        for _ in 0..<10_000 where !restorer.hasEntered { await Task.yield() }
-        XCTAssertTrue(restorer.hasEntered)
+        let entered = await waitUntil { restorer.hasEntered }
+        XCTAssertTrue(entered, "the first restore should have entered the restorer within the deadline")
 
         let second = await sut.restoreNow()
         let fixWhileRunning = await sut.fixMonitors()
@@ -221,6 +221,24 @@ final class RestoreCoordinatorTests: XCTestCase {
             _ = await makeSUT(log: CallLog(), learned: input, learnedLog: learnedLog).fixMonitors()
             XCTAssertEqual(learnedLog.entries, [expected])
         }
+    }
+
+    /// C2 (12): Fix Monitors and restore resolve the layout through the LIVE display set.
+    func testLearnedLayoutIsLookedUpByLiveDisplaySet() async {
+        let seen = CallLog()
+        let log = CallLog()
+        let sut = RestoreCoordinator(
+            trust: FakeTrust(trusted: true), displays: FakeDisplays(serials: serials),
+            snapshots: FakeSnapshots(file: snapshotFile()),
+            learnedLayout: { live in seen.add(live.origins.keys.sorted().joined(separator: ",")); return live },
+            fixer: FakeFixer(log: log, outcome: .verified), topology: FakeTopology(log: log),
+            liveWindows: FakeLive(log: log),
+            restorer: FakeRestorer(log: log, statuses: [.moved, .moved]),
+            logWriter: FakeLogWriter(log: log),
+            capability: .full, now: { Date(timeIntervalSince1970: 1_000) }
+        )
+        _ = await sut.fixMonitors()
+        XCTAssertEqual(seen.entries, ["PANEL1,builtin"])
     }
 
     @MainActor
@@ -265,18 +283,18 @@ final class RestoreCoordinatorTests: XCTestCase {
     }
 }
 
-// MARK: - Own window (Bug 65)
+// MARK: - Own window
 
 extension RestoreCoordinatorTests {
-    /// Snapshots written before own windows were excluded still hold Total Rekall's window; the restore
+    /// Snapshots written before own windows were excluded still hold TotalRekall's window; the restore
     /// never plans it, so "N of M" counts only the user's windows.
     func testOwnBundleWindowInExistingSnapshotIsNotPlanned() async {
         let log = CallLog()
         var file = snapshotFile(windowCount: 2)
         let key = SnapshotKey.make(panelSerials: serials)
         let own = WindowSnapshot(
-            id: UUID(), bundleID: "com.productengineered.TotalRekall", appName: "Total Rekall", windowID: 158_216,
-            windowTitle: "Total Rekall", windowIndex: 0, displayFingerprint: nil, displayIndex: 0,
+            id: UUID(), bundleID: "com.productengineered.TotalRekall", appName: "TotalRekall", windowID: 158_216,
+            windowTitle: "TotalRekall", windowIndex: 0, displayFingerprint: nil, displayIndex: 0,
             panelSerial: "builtin", spaceOrdinal: 1, spaceUUID: nil, spaceIndex: 0,
             frame: SnapshotFrame(x: 0, y: 0, width: 10, height: 10), isFullscreen: false, isMinimized: false, zOrder: 2)
         file.configurations[key]?.windows.append(own)
@@ -355,5 +373,48 @@ extension RestoreCoordinatorTests {
         XCTAssertEqual(viewModel.lastResult, previous)
         XCTAssertNil(viewModel.lastRestoreDetail)
         XCTAssertFalse(quiet.setsAttention)
+    }
+}
+
+// MARK: - Desk name in the restore log and diagnostics (named desks)
+
+private final class CapturingLogWriter: RestoreLogWriting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [RestoreLog] = []
+    var logs: [RestoreLog] { lock.withLock { stored } }
+    func write(_ log: RestoreLog) throws { lock.withLock { stored.append(log) } }
+}
+
+extension RestoreCoordinatorTests {
+    private func deskSUT(deskName: String?, writer: CapturingLogWriter, diagnostics: RecordingDiagnostics)
+        -> RestoreCoordinator {
+        let log = CallLog()
+        return RestoreCoordinator(
+            trust: FakeTrust(trusted: true), displays: FakeDisplays(serials: serials),
+            snapshots: FakeSnapshots(file: snapshotFile()), deskName: { _ in deskName },
+            fixer: FakeFixer(log: log, outcome: .verified), topology: FakeTopology(log: log),
+            liveWindows: FakeLive(log: log), restorer: FakeRestorer(log: log, statuses: [.moved, .moved]),
+            logWriter: writer, capability: .full, now: { Date(timeIntervalSince1970: 1_000) },
+            diagnostics: diagnostics, ownBundleID: "com.productengineered.TotalRekall")
+    }
+
+    func testRestoreLogAndStartEventCarryTheDeskName() async {
+        let writer = CapturingLogWriter()
+        let diagnostics = RecordingDiagnostics()
+        let context = CycleContext(trigger: .manual)
+        _ = await deskSUT(deskName: "Studio", writer: writer, diagnostics: diagnostics).restoreNow(context: context)
+        XCTAssertEqual(writer.logs.first?.deskName, "Studio")
+        XCTAssertNotNil(writer.logs.first?.configKey, "the config key stays next to the desk name")
+        let started = diagnostics.events.first { $0.name == "restore-started" }
+        XCTAssertEqual(started?.fields["desk_name"], .string("Studio"))
+    }
+
+    func testUnnamedDeskLeavesTheFieldOut() async {
+        let writer = CapturingLogWriter()
+        let diagnostics = RecordingDiagnostics()
+        _ = await deskSUT(deskName: nil, writer: writer, diagnostics: diagnostics)
+            .restoreNow(context: CycleContext(trigger: .manual))
+        XCTAssertNil(writer.logs.first?.deskName)
+        XCTAssertNil(diagnostics.events.first { $0.name == "restore-started" }?.fields["desk_name"])
     }
 }

@@ -2,7 +2,7 @@
 // Assembles a guarded Snapshot from live window/display/Space data and hands it to SnapshotStore,
 // which applies the zero-window and <50% guards. A capture that cannot be trusted (Accessibility
 // revoked, no AX join, an AX join that came back empty for every app, unreadable panel serial, no
-// topology) FAILS instead of writing a degraded snapshot to disk. Total Rekall's own windows are
+// topology) FAILS instead of writing a degraded snapshot to disk. TotalRekall's own windows are
 // never captured.
 
 import Foundation

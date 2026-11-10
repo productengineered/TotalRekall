@@ -20,7 +20,7 @@ final class SetupWindowSizeTests: XCTestCase {
     }
 
     func testAllStateAndReasonCombinationsAreMeasured() {
-        XCTAssertEqual(SetupWindowController.allVariants(paneName: "Accessibility").count, 10)
+        XCTAssertEqual(SetupWindowController.allVariants(paneName: "Accessibility").count, 14)   // 5 permission states + 2 desk states, x 2 reasons
     }
 
     func testWindowHeightIsMaxAcrossVariantsAndNeverChangesAcrossStates() throws {
@@ -35,7 +35,7 @@ final class SetupWindowSizeTests: XCTestCase {
         let initial = try XCTUnwrap(controller.windowFrame)
 
         let states: [SetupState] = [.needsPermission(.revoked), .waitingForGrant, .relaunchSuggested, .granted,
-                                    .needsPermission(.firstRun)]
+                                    .namingDesk(.docked), .namingDesk(.undocked), .needsPermission(.firstRun)]
         for state in states {
             model.forcePreviewState(state)
             controller.show()

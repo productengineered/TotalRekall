@@ -31,6 +31,16 @@ enum SwapDetector {
         if hasUnreadableSerial { return .unknown(reason: "a panel serial is unavailable") }
         if learned.origins.isEmpty { return .unknown(reason: "no learned layout") }
         if live.origins.isEmpty { return .unknown(reason: "no live displays") }
+        // The built-in display is ignored when it is the only difference (lid closed: the internal
+        // panel may be absent from the live list). Otherwise the sets must match exactly.
+        var learned = learned
+        var live = live
+        if Set(learned.origins.keys) != Set(live.origins.keys),
+           DeskKey.panelSet(of: learned) == DeskKey.panelSet(of: live) {
+            let externals = DeskKey.panelSet(of: learned)
+            learned.origins = learned.origins.filter { externals.contains($0.key) }
+            live.origins = live.origins.filter { externals.contains($0.key) }
+        }
         guard Set(learned.origins.keys) == Set(live.origins.keys) else {
             return .unknown(reason: "live panels differ from the learned panels")
         }

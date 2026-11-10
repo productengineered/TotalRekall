@@ -61,8 +61,8 @@ final class DiagnosticsLog: DiagnosticsRecording, Sendable {
         }
     }
 
-    /// Field keys that identify an app; these only ever reach os.Logger as `.private`.
-    nonisolated static let privateFieldKeys: Set<String> = ["bundle_id", "app_name"]
+    /// Field keys that identify an app or a user-chosen desk name; these only ever reach os.Logger as `.private`.
+    nonisolated static let privateFieldKeys: Set<String> = ["bundle_id", "app_name", "desk_name"]
 
     /// Splits the os.Logger line into a public part and a private part (app identity).
     nonisolated static func summaryParts(_ event: DiagnosticsEvent) -> (publicText: String, privateText: String) {

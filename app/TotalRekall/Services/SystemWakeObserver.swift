@@ -4,7 +4,7 @@
 // Sleep and wake events are also written to the diagnostics diary.
 // NSWorkspace posts these notifications on its own notification center, not the default one.
 //
-// Snapshot hold (Bug 65): while the screens are asleep (or the session is locked) AX cannot see other
+// Snapshot hold: while the screens are asleep (or the session is locked) AX cannot see other
 // apps' windows, so captures shrink to almost nothing. On screensDidSleep this observer sets the
 // `.screensAsleep` hold on SnapshotGate. On screensDidWake it polls the session-readiness probe (the
 // same AX-join predicate the capture guard uses) with a bounded backoff and clears the hold once it

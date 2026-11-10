@@ -67,6 +67,8 @@ enum SetupPreviewLauncher {
         case "waiting": .waitingForGrant
         case "relaunch": .relaunchSuggested
         case "done": .granted
+        case "desk-docked": .namingDesk(.docked)
+        case "desk-undocked": .namingDesk(.undocked)
         default: nil
         }
     }

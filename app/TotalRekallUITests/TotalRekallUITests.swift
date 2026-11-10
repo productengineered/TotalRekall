@@ -4,6 +4,6 @@ final class TotalRekallUITests: XCTestCase {
     func testAppLaunches() throws {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.staticTexts["Total Rekall"].exists)
+        XCTAssertTrue(app.staticTexts["TotalRekall"].exists)
     }
 }

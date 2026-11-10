@@ -65,7 +65,11 @@ actor RestoreCoordinator {
     private let trust: AccessibilityTrustChecking
     private let displays: DisplayProviding
     private let snapshots: SnapshotLoading
-    private let learnedLayout: @Sendable () async -> MonitorLayout
+    /// The live set's desk layout (empty for a new desk).
+    private let learnedLayout: @Sendable (MonitorLayout) async -> MonitorLayout
+    /// The live set's desk name (nil when the desk is unnamed or there is none). Recorded in the restore
+    /// log and the restore-started event.
+    private let deskName: @Sendable (MonitorLayout) async -> String?
     private let fixer: MonitorFixing
     private let topology: SpaceTopologyProviding
     private let liveWindows: LiveWindowProviding
@@ -74,7 +78,7 @@ actor RestoreCoordinator {
     private let capability: SpaceBridgeCapability
     private let now: @Sendable () -> Date
     private let diagnostics: any DiagnosticsRecording
-    /// Total Rekall's own bundle: snapshots written before own windows were excluded still hold one,
+    /// TotalRekall's own bundle: snapshots written before own windows were excluded still hold one,
     /// and it is never a user window to restore.
     private let ownBundleID: String?
 
@@ -84,7 +88,12 @@ actor RestoreCoordinator {
         trust: AccessibilityTrustChecking,
         displays: DisplayProviding,
         snapshots: SnapshotLoading,
-        learnedLayout: @escaping @Sendable () async -> MonitorLayout = { MonitorLayout(origins: [:]) },
+        learnedLayout: @escaping @Sendable (MonitorLayout) async -> MonitorLayout = { _ in
+            MonitorLayout(origins: [:])
+        },
+        deskName: @escaping @Sendable (MonitorLayout) async -> String? = { live in
+            DeskNameLookup.persistedName(forLive: live)
+        },
         fixer: MonitorFixing,
         topology: SpaceTopologyProviding,
         liveWindows: LiveWindowProviding,
@@ -100,6 +109,7 @@ actor RestoreCoordinator {
         self.displays = displays
         self.snapshots = snapshots
         self.learnedLayout = learnedLayout
+        self.deskName = deskName
         self.fixer = fixer
         self.topology = topology
         self.liveWindows = liveWindows
@@ -112,6 +122,7 @@ actor RestoreCoordinator {
 
     // MARK: Restore Now
 
+    // swiftlint:disable:next function_body_length
     func restoreNow(context cycle: CycleContext) async -> RestoreOutcome {
         guard trust.isProcessTrusted() else { return .refusedNoAccessibility }
         // No suspension point between the check and the set: the actor makes this atomic.
@@ -125,7 +136,9 @@ actor RestoreCoordinator {
         case .failure(let outcome): return outcome
         }
 
-        diagnostics.record(.restoreStarted(cycleID: cycle.cycleID, trigger: cycle.trigger, capability: capability))
+        let desk = await deskName(MonitorLayout.from(displays: displays.currentDisplays()))
+        diagnostics.record(.restoreStarted(cycleID: cycle.cycleID, trigger: cycle.trigger, capability: capability,
+                                           deskName: desk))
 
         // Steps 1-2: detect the swap by serial and fix it, suppressing our own reconfiguration.
         let fixOutcome = detectAndFix(context: context, cycleID: cycle.cycleID)
@@ -166,7 +179,7 @@ actor RestoreCoordinator {
         }
         let log = RestoreLog(results: results, date: date, configKey: context.config.fingerprint,
                              capability: capability, layout: context.layout, monitorFix: fixOutcome,
-                             context: cycle)
+                             context: cycle, deskName: desk)
         do {
             try logWriter.write(log)
         } catch {
@@ -233,9 +246,8 @@ actor RestoreCoordinator {
 
     private struct SnapshotContext {
         let config: DisplayConfigSnapshot
-        /// Layout to detect the swap against: LearnedLayoutStore (learned before the pause), falling
-        /// back to the origins in the latest snapshot for this display set when nothing is learned yet
-        /// (e.g. right after relaunch).
+        /// Layout to detect the swap against: the live desk's layout from LearnedLayoutStore (learned
+        /// before the pause), falling back to the origins in the latest snapshot for this display set.
         let layout: MonitorLayout
     }
 
@@ -255,12 +267,8 @@ actor RestoreCoordinator {
             return .failure(.failed("Snapshot unreadable: \(error)"))
         }
         guard let config = file.configurations[key], !config.windows.isEmpty else { return .failure(.noSnapshot) }
-        var origins: [String: MonitorLayout.Origin] = [:]
-        for d in config.displays {
-            if let serial = d.panelSerial { origins[serial] = MonitorLayout.Origin(x: d.originX, y: d.originY) }
-        }
-        let learned = await learnedLayout()
-        let layout = learned.origins.isEmpty ? MonitorLayout(origins: origins) : learned
+        let learned = await learnedLayout(MonitorLayout.from(displays: displays.currentDisplays()))
+        let layout = learned.origins.isEmpty ? MonitorLayout.from(snapshotDisplays: config.displays) : learned
         return .success(SnapshotContext(config: config, layout: layout))
     }
 }
@@ -348,9 +356,10 @@ extension DiagnosticsEvent {
     }
 
     static func restoreStarted(cycleID: UUID, trigger: CycleTrigger,
-                               capability: SpaceBridgeCapability) -> DiagnosticsEvent {
+                               capability: SpaceBridgeCapability, deskName: String? = nil) -> DiagnosticsEvent {
         var fields = capabilityFields(capability)
         fields["trigger"] = .code(trigger)
+        if let deskName { fields["desk_name"] = .string(deskName) }
         return DiagnosticsEvent(.restore, "restore-started", cycleID: cycleID, fields: fields)
     }
 

@@ -1,12 +1,12 @@
-# Total Rekall: User Guide
+# TotalRekall: User Guide
 
-This page tells you how to install Total Rekall, switch it on, tell whether it is working, and export diagnostics if it is not.
+This page tells you how to install TotalRekall, switch it on, tell whether it is working, and export diagnostics if it is not.
 
 The macOS security prompts described below can change between macOS versions. If your screen does not match, follow what macOS shows you.
 
-## What Total Rekall does
+## What TotalRekall does
 
-Total Rekall is a small menu bar app (a bear icon). When you dock or undock your Mac, macOS often throws your windows onto the wrong screen or the wrong desktop. Total Rekall remembers where your windows were while your desk was connected, and puts them back when your displays change.
+TotalRekall is a small menu bar app (a bear icon). When you dock or undock your Mac, macOS often throws your windows onto the wrong screen or the wrong desktop. TotalRekall remembers where your windows were while your desk was connected, and puts them back when your displays change.
 
 ## Requirements
 
@@ -18,9 +18,9 @@ Total Rekall is a small menu bar app (a bear icon). When you dock or undock your
 
 You need a disk image file named like `TotalRekall-1.0.dmg`. You can build one with `scripts/make-dmg.sh`.
 
-1. Double-click the `.dmg` file. A window named **Total Rekall** opens.
+1. Double-click the `.dmg` file. A window named **TotalRekall** opens.
 2. Drag **TotalRekall** onto the **Applications** folder shown in that window.
-3. Close the window. In Finder, eject **Total Rekall** from the sidebar (click the eject button next to it).
+3. Close the window. In Finder, eject **TotalRekall** from the sidebar (click the eject button next to it).
 4. Open **Applications** and double-click **TotalRekall**.
 5. If macOS refuses to open it, that is because the app is not notarized by Apple.
    1. Click **Done** (or **OK**) on the message. Do not move the app to the Trash.
@@ -33,10 +33,12 @@ You need a disk image file named like `TotalRekall-1.0.dmg`. You can build one w
 
 If a build is signed differently from the one you had before (for example, an ad-hoc build), macOS treats it as a different app. After you install a new build, Accessibility is probably switched off for it and the app will show a warning.
 
-1. Quit the old app: click the bear, then **Quit Total Rekall**.
+After you reinstall, or update from an older build, macOS may switch off TotalRekall's Accessibility permission: open System Settings > Privacy & Security > Accessibility, switch **TotalRekall** back on (or remove it with the minus button and add it again), then use **Relaunch** in the app.
+
+1. Quit the old app: click the bear, then **Quit TotalRekall**.
 2. Drag the new **TotalRekall** onto **Applications**. Click **Replace** when asked.
 3. Open it. The first-open block in step 5 above may appear again.
-4. If the setup window asks for Accessibility again, follow "Switch on Accessibility" below. If Total Rekall is already in the list and looks switched on but the app still complains, switch it off and on again in the list, then use **Relaunch** (see below).
+4. If the setup window asks for Accessibility again, follow "Switch on Accessibility" below. If TotalRekall is already in the list and looks switched on but the app still complains, switch it off and on again in the list, then use **Relaunch** (see below).
 
 ## Install B: build it yourself
 
@@ -49,9 +51,9 @@ Do this if you have Xcode and a copy of the source.
 
 ## Switch on Accessibility
 
-Accessibility is the macOS permission that lets an app move other apps' windows. Total Rekall asks for nothing else for its main job. It makes no network requests.
+Accessibility is the macOS permission that lets an app move other apps' windows. TotalRekall asks for nothing else for its main job. It makes no network requests.
 
-1. When you first open the app, a window titled **Let Total Rekall arrange your windows** appears.
+1. When you first open the app, a window titled **Let TotalRekall arrange your windows** appears.
 2. Click **Open System Settings**. This opens System Settings > Privacy & Security > Accessibility.
 3. In the list, switch on **TotalRekall**. Enter your password if asked.
 4. Go back to the setup window. It updates by itself and changes to **You're all set**. Click **Done**.
@@ -60,7 +62,7 @@ If the setup window instead says **Already granted? Relaunch to finish enabling*
 
 If you close the setup window and want it back: click the bear, then **Accessibility access needed**. The line **Already granted? Relaunch to Finish Enabling** sits just below it.
 
-If you later switch Accessibility off, the window comes back with **Total Rekall needs Accessibility again**. Click **Open System Settings** to turn it on, or **Not Now** to leave it off. While it is off, your windows will not move back.
+If you later switch Accessibility off, the window comes back with **TotalRekall needs Accessibility again**. Click **Open System Settings** to turn it on, or **Not Now** to leave it off. While it is off, your windows will not move back.
 
 ## What normal looks like
 
@@ -71,7 +73,7 @@ If you later switch Accessibility off, the window comes back with **Total Rekall
   - `Restoring windows…`
   - `Paused — display change in progress`, `Paused — desk monitors not connected`, `Paused — monitor layout not verified`. These are not errors. The app waits so it does not save a wrong layout.
 - Under it, a **Last restore** line, for example `Last restore: 7 of 7 windows, 2:35 PM`. Hover over it to open a small list showing what triggered the restore and what happened to each app. Before the first restore it says `No restore yet`.
-- Other menu items: **Save Snapshot Now**, **Restore Now**, **Fix Monitors**, **Reveal Restore Log**, **Export Diagnostics…**, **Launch at Login**, **Quit Total Rekall**.
+- Other menu items: **Save Snapshot Now**, **Restore Now**, **Fix Monitors**, **Reveal Restore Log**, **Export Diagnostics…**, **Launch at Login**, **Quit TotalRekall**.
 
 Nothing else needs doing. Dock and undock as usual.
 
@@ -79,7 +81,7 @@ Nothing else needs doing. Dock and undock as usual.
 
 **The badge.** If the bear shows a warning badge, the last restore did not fully work. The menu top line says `Needs attention — see Last restore`. Hover over **Last restore** to see which apps failed. If the Accessibility permission is missing, the icon is a warning triangle instead and the top line says `Accessibility access needed`.
 
-**The notification.** When an automatic restore (after a display change, after waking the Mac, or at app start) goes wrong, macOS shows a notification titled **Total Rekall**. The first time, macOS asks whether the app may send notifications; allow it if you want these alerts. The message is one of:
+**The notification.** When an automatic restore (after a display change, after waking the Mac, or at app start) goes wrong, macOS shows a notification titled **TotalRekall**. The first time, macOS asks whether the app may send notifications; allow it if you want these alerts. The message is one of:
 
 - `Couldn't restore. Open the restore log for details.`
 - `Partly restored. N of M windows.` (for example 5 of 7)
@@ -97,11 +99,11 @@ If something went wrong, export diagnostics right after it happens.
 4. The file is a zip on your Desktop named `TotalRekall-Diagnostics-YYYY-MM-DD-HHMM.zip`.
 5. Attach the zip to your report (see "Reporting a problem" below). The app never uploads it.
 
-If the Desktop cannot be used, the note says `Couldn't use the Desktop. Saved in Total Rekall's folder.` The zip is then in `~/Library/Application Support/TotalRekall/exports`. If it says `Export failed`, describe what happened in your report.
+If the Desktop cannot be used, the note says `Couldn't use the Desktop. Saved in TotalRekall's folder.` The zip is then in `~/Library/Application Support/TotalRekall/exports`. If it says `Export failed`, describe what happened in your report.
 
 **What is inside the zip:** a short activity log from the app; the last restore log; a summary of the saved layouts; a list of your displays (size, position, and which desktops each has); the app version and macOS version; and a list of what is included.
 
-**No window titles.** Window titles can contain private things (document names, web pages). The app does not copy the raw restore log or saved layouts into the zip. Every window title in the restore log is replaced with `[redacted]`. The zip does contain app names and display serial numbers. You can open it and check before sending.
+**No window titles.** Window titles can contain private things (document names, web pages). The app does not copy the raw restore log or saved layouts into the zip. Every window title in the restore log is replaced with `[redacted]`. The zip does contain app names and display serial numbers. It also contains the desk names you chose (for example "Studio"), because they help us tell your desks apart; leave a name generic if you do not want to share it. You can open it and check before sending.
 
 ## Known limitations
 
@@ -122,7 +124,7 @@ Open an issue at https://github.com/productengineered/TotalRekall/issues and inc
 
 ## Quit and uninstall
 
-- **Quit:** click the bear, then **Quit Total Rekall**.
+- **Quit:** click the bear, then **Quit TotalRekall**.
 - **Stop it starting at login:** click the bear and untick **Launch at Login**.
 - **Uninstall:**
   1. Quit the app.

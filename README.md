@@ -1,107 +1,127 @@
-# Total Rekall
+# TotalRekall
 
-Total Rekall is a small macOS menu bar app (a bear icon) that puts your monitors and windows back where they were after you dock or undock your Mac.
+<p align="center">
+  <img src="docs/images/app-icon.png" width="128" alt="The TotalRekall app icon, a bear">
+</p>
 
-When you connect a laptop to a dock, macOS often swaps two identical monitors, or throws your windows onto the wrong screen or the wrong desktop. Total Rekall saves where your windows were while your desk was connected. When your displays change, it restores that layout.
+<p align="center"><strong>Your desk, the way you left it.</strong></p>
 
-It does two things:
+Tired of fixing your monitors and app locations each time you reconnect your Mac to your dock? Monitors arranged incorrectly, windows all over the place.
 
-- **Fixes monitor order swaps.** It detects when two monitors have changed places and swaps them back.
-- **Restores windows and desktops.** It moves each window back to its saved position, display, and desktop (Space).
+TotalRekall fixes that. It remembers your setup and restores your monitor order, window positions and sizes, and desktops when you reconnect. It runs quietly from your menu bar, so you can get back to what you were doing.
 
-You can also run both yourself from the menu: **Restore Now** and **Fix Monitors**.
+> **TotalRekall is in beta.** Please report bugs early and often: if something doesn't work the way you expect, even something small, [open an issue](https://github.com/productengineered/TotalRekall/issues). See [Report a problem](#report-a-problem) for what to include.
 
-## Requirements
+## What it restores
 
-- macOS 26 (Tahoe) or later.
-- A Mac you dock to one or more external monitors. The app does nothing useful on a display setup that never changes.
-- Accessibility permission for the app. Without it, the app cannot move windows.
-- To build from source: Xcode 26 or later.
+- **Monitor order/arrangement.** Puts your monitors back in the right arrangement, so moving between screens works the way you expect.
+- **Window positions and sizes.** Returns your windows to the right screens, at the size and position you left them.
+- **Desktops (Spaces).** Moves windows back to the desktops they were on before you undocked.
 
-## Install
+While you're docked, TotalRekall takes continual snapshots of your layout (every 10 minutes). When you reconnect, it puts everything back where it was.
 
-### Option A: disk image
+## Support the project
 
-If you have a `TotalRekall-<version>.dmg` file:
+TotalRekall is free. If it saves you some window-dragging, you can buy me a coffee.
 
-1. Open the `.dmg`.
-2. Drag **TotalRekall** onto **Applications**.
-3. Open **TotalRekall** from Applications.
+<a href="https://www.dynamiccorporateleader.com/offers/LC2KfjsD"><img src="https://img.shields.io/badge/%E2%98%95%20Buy%20me%20a%20coffee-FFDD00?style=for-the-badge" alt="Buy me a coffee" height="36"></a>
 
-Builds are not notarized by Apple. On first open, macOS may block the app. Open **System Settings > Privacy & Security**, find the message about TotalRekall, and click **Open Anyway**. The [user guide](docs/USER_GUIDE.md) has the full steps.
+## Get started
 
-### Option B: build from source
+You'll need **macOS 26 (Tahoe) or later** and a Mac you connect to external monitors.
 
-1. Clone this repository.
-2. Choose one of these:
-   - **Signed with your Apple developer team (recommended).** Copy `app/Config/Local.xcconfig.example` to `app/Config/Local.xcconfig` and put your team ID in it. Then run `scripts/install.sh`.
-   - **Ad-hoc signed, no developer account.** Run `scripts/install.sh --adhoc`.
-3. The script builds a Release app, copies it to `/Applications/TotalRekall.app`, and opens it.
+### Install from a disk image
 
-An ad-hoc build has a different signature every time you build it. macOS may drop the Accessibility permission each time you reinstall, and you will need to grant it again in **System Settings > Privacy & Security > Accessibility**. A build signed with your team ID keeps the permission.
+If you have a `TotalRekall-<version>.dmg`:
 
-To make a disk image yourself, run `scripts/make-dmg.sh`. It writes `dist/TotalRekall-<version>.dmg`.
+1. Open it and drag **TotalRekall** into **Applications**.
+2. Open **TotalRekall**.
+3. Follow the setup window to enable **Accessibility** in System Settings.
+4. If you're docked, give your desk a name, then click **Save**.
 
-You can also open `app/TotalRekall.xcodeproj` in Xcode and run it.
+<table>
+  <tr>
+    <td align="center" valign="top"><img src="docs/images/setup-needs-access.png" width="260" alt="The setup window asking for Accessibility access, with an Open System Settings button"></td>
+    <td align="center" valign="top"><img src="docs/images/setup-ready.png" width="260" alt="The setup window saying You're all set, with a Continue button"></td>
+    <td align="center" valign="top"><img src="docs/images/setup-name-desk.png" width="260" alt="The setup window asking you to name this desk, with a name field and a Save button"></td>
+  </tr>
+  <tr>
+    <td align="center">First launch: turn on Accessibility</td>
+    <td align="center">Access granted</td>
+    <td align="center">Name your desk</td>
+  </tr>
+</table>
 
-## Why it needs Accessibility
+Builds are not yet notarized by Apple. If macOS blocks the first launch, go to **System Settings > Privacy & Security** and choose **Open Anyway**. See the [user guide](docs/USER_GUIDE.md) for the full steps.
 
-macOS only lets an app move other apps' windows if you give it Accessibility permission. Total Rekall uses it for two things:
+### Build from source
 
-- **Reading** the position, size, and state of your windows, so it can save them.
-- **Setting** the position and size of your windows, so it can restore them.
+Requires **Xcode 26 or later**.
 
-It does not read or record what you type, and it does not read the contents of your windows. It does save each window's title and app name in its local layout file, so it can match a window to its saved place.
+```sh
+git clone https://github.com/productengineered/TotalRekall.git
+cd TotalRekall
+scripts/install.sh --adhoc
+```
 
-**Network.** Total Rekall makes no network requests. The code does not use `URLSession`, sockets, or any other networking API, and the app has no update checker, analytics, or crash reporting. Nothing leaves your Mac unless you choose to send a diagnostics file yourself.
+The script builds the app, installs it in `/Applications`, and opens it. No developer account is required for this option. Ad-hoc builds may need Accessibility permission granted again after each reinstall.
 
-The app is not sandboxed. It asks macOS for notification permission so it can tell you when a restore fails.
+For a stable signing identity, copy `app/Config/Local.xcconfig.example` to `app/Config/Local.xcconfig`, enter your Apple developer team ID, and run `scripts/install.sh` without `--adhoc`.
 
-## Private macOS APIs
+You can also open `app/TotalRekall.xcodeproj` in Xcode. To package a disk image, run `scripts/make-dmg.sh`; the file is written to `dist/`.
 
-Moving a window to another desktop (Space) has no public macOS API. Total Rekall uses private functions from Apple's SkyLight framework to read which Space each window is on and to move windows between Spaces. It also uses one private Accessibility function, `_AXUIElementGetWindow`, to match an Accessibility window to its on-screen window.
+### Once it's running
 
-What this means for you:
+While docked, create your first snapshot by clicking the bear icon <img src="docs/images/menubar-icon.png" height="20" alt="the bear menu bar icon"> in the menu bar and choosing **Save Snapshot Now**. After that, dock and undock as usual. If you've just rearranged your windows, choose **Save Snapshot Now** before you undock. Choose **Launch at Login** if you'd like TotalRekall to start with your Mac.
 
-- Apple does not document or support these functions. A macOS update can change or remove them.
-- If they stop working, the app falls back to position only: it puts windows back at the right place on the right display, but it cannot move them to the right desktop.
-- This code is why the app cannot be distributed through the Mac App Store.
+<p align="center"><img src="docs/images/menu.png" width="390" alt="The TotalRekall menu: status line, last restore result, Save Snapshot Now, Restore Now, Fix Monitors, Reveal Restore Log, Export Diagnostics, Desks, Launch at Login, and Quit TotalRekall"></p>
 
-All private API use is in one file: `app/TotalRekall/Services/SpaceBridge.swift`.
+### More than one desk
 
-## Where your data lives
+If you dock in more than one place, such as at home and at work, TotalRekall remembers each desk separately. During setup it asks you to name the desk you're connected to. The first time you connect to a new set of monitors, it asks whether to save that desk and what to call it. If you skip the question, it keeps working and uses a name like "Desk 2" that you can change later.
 
-Everything is in `~/Library/Application Support/TotalRekall`:
+The **Desks** menu lists your desks, with the current one checked. From there you can rename the current desk, save its current monitor arrangement, or forget it.
 
-- `snapshots.json` and `snapshots.last-good.json`: saved window layouts, including window titles.
-- `restore-log.json`: what the last restores did.
-- `exports/`: diagnostics zips, if the Desktop could not be used.
-- `instance.lock`: stops two copies of the app from running at once.
+<p align="center"><img src="docs/images/menu-desks.png" width="560" alt="The Desks submenu: the current desk with a checkmark, then Rename, Save Current Arrangement, and Forget Desk"></p>
 
-The folder is readable only by your user account. The app also keeps a few settings (such as whether setup is finished and Launch at Login) in macOS preferences.
+The [user guide](docs/USER_GUIDE.md) covers setup, menu controls, troubleshooting, and uninstalling.
 
-**To reset:** quit the app, delete the `TotalRekall` folder above, and open the app again. It starts with no saved layouts. To remove the settings too, run `defaults delete com.productengineered.TotalRekall` in Terminal.
+## Permissions and privacy
 
-## Export Diagnostics
+TotalRekall needs **Accessibility** permission to read and change window positions and sizes. It keeps a local record of your windows on your Mac so it can put them back. It does not record keystrokes or read the contents of your windows.
 
-If something goes wrong, click the bear, then **Export Diagnostics…**. The app writes a zip named `TotalRekall-Diagnostics-YYYY-MM-DD-HHMM.zip` to your Desktop. It contains a short activity log, the last restore log, a summary of the saved layouts, your display list, and the app and macOS versions. Window titles in the restore log are replaced with `[redacted]`. The raw layout file is not included. The app does not upload the zip; you send it yourself.
+The app makes **no network requests**. There are no analytics, crash uploads, or update checks. Layouts and logs stay on your Mac in `~/Library/Application Support/TotalRekall`, in a folder restricted to your user account.
 
-## User guide
+The app is not sandboxed. It also requests notification permission so it can alert you when an automatic restore needs attention.
 
-See the [user guide](docs/USER_GUIDE.md) for install steps, setting up Accessibility, what the menu shows, and uninstalling.
+## Limitations
 
-## Known limitations
+**Space restoration uses private macOS APIs.** Apple can change these in a macOS update. If Apple changes them, moving windows between Spaces may stop working until TotalRekall is updated. This also prevents distribution through the Mac App Store.
 
-- The monitor swap fix has been tested on one setup: a MacBook Pro with two identical monitors on one dock. Other setups may behave differently.
-- Desktop (Space) restore depends on private APIs that macOS updates can break.
-- macOS 26 or later only.
+## Report a problem
 
-## Support
+Choose **Export Diagnostics…** from the bear menu, then [open an issue](https://github.com/productengineered/TotalRekall/issues) with the ZIP, your macOS version, your monitor setup, and what went wrong.
 
-Total Rekall is free. If it saves you some window-dragging and you'd like to say thanks, you can [buy me a coffee](https://www.dynamiccorporateleader.com/offers/LC2KfjsD).
+The ZIP is saved to your Desktop, with a fallback to the app's local data folder. Window titles are redacted and raw saved layouts are excluded. App names and display serial numbers are included, so you can inspect it before sharing. Nothing is uploaded automatically.
 
-Found a bug or have an idea? [Open an issue](https://github.com/productengineered/TotalRekall/issues).
+<details>
+<summary>Local files and resetting the app</summary>
+
+Data is stored in `~/Library/Application Support/TotalRekall`:
+
+- `snapshots.json` and `snapshots.last-good.json`: saved layouts, including window titles.
+- `restore-log.json`: restore results.
+- `exports/`: diagnostics exports when the Desktop is unavailable.
+- `instance.lock`: prevents multiple copies from running at once.
+
+To clear saved layouts and logs, quit TotalRekall, delete this folder, and reopen the app. To also remove preferences, run:
+
+```sh
+defaults delete com.productengineered.TotalRekall
+```
+
+</details>
 
 ## License
 
-Not yet chosen.
+A license has not yet been selected.

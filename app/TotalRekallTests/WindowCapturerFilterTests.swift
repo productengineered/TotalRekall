@@ -326,10 +326,10 @@ final class SnapshotServiceCaptureTests: XCTestCase {
     }
 }
 
-// MARK: - Capture trust guards (Bug 65: locked session, screens asleep)
+// MARK: - Capture trust guards (locked session, screens asleep)
 
 /// The locked-session capture shape: other apps' windows have no CG title and AX returns nothing for
-/// any pid, while CG still titles Total Rekall's own window.
+/// any pid, while CG still titles TotalRekall's own window.
 final class SnapshotTrustGuardTests: XCTestCase {
     private static let ownPID: Int32 = 999
     private static let lockedAXError: Int32 = -25204  // kAXErrorCannotComplete
@@ -379,8 +379,8 @@ final class SnapshotTrustGuardTests: XCTestCase {
                          bundleID: "com.example.app\(n % 18)", title: nil,
                          frame: SnapshotFrame(x: 0, y: 0, width: 800, height: 600), layer: 0, alpha: 1, onScreen: true)
         }
-        list.append(CGWindowInfo(windowID: 158_216, ownerPID: Self.ownPID, ownerName: "Total Rekall",
-                                 bundleID: "com.productengineered.TotalRekall", title: "Total Rekall",
+        list.append(CGWindowInfo(windowID: 158_216, ownerPID: Self.ownPID, ownerName: "TotalRekall",
+                                 bundleID: "com.productengineered.TotalRekall", title: "TotalRekall",
                                  frame: SnapshotFrame(x: 0, y: 0, width: 600, height: 400), layer: 0, alpha: 1,
                                  onScreen: true))
         return list
@@ -397,8 +397,8 @@ final class SnapshotTrustGuardTests: XCTestCase {
     private var openToken: SnapshotGateToken { SnapshotGateToken(gate: SnapshotGate(), epoch: 0) }
 
     func testOwnWindowIsNeverACandidateEvenWhenTitled() {
-        let own = CGWindowInfo(windowID: 1, ownerPID: 42, ownerName: "Total Rekall", bundleID: "com.productengineered.TotalRekall",
-                               title: "Total Rekall", frame: SnapshotFrame(x: 0, y: 0, width: 600, height: 400),
+        let own = CGWindowInfo(windowID: 1, ownerPID: 42, ownerName: "TotalRekall", bundleID: "com.productengineered.TotalRekall",
+                               title: "TotalRekall", frame: SnapshotFrame(x: 0, y: 0, width: 600, height: 400),
                                layer: 0, alpha: 1, onScreen: true)
         XCTAssertTrue(WindowCapturer.isCandidate(own))
         XCTAssertFalse(WindowCapturer.isCandidate(own, excludingOwnerPID: 42))
@@ -490,7 +490,7 @@ final class SnapshotTrustGuardTests: XCTestCase {
     }
 }
 
-// MARK: - Shrink confirmation wiring (Bug 65)
+// MARK: - Shrink confirmation wiring
 
 extension SnapshotServiceCaptureTests {
     /// Scheduled/launch/display-change captures hold an under-half shrink; Save Snapshot Now accepts it.

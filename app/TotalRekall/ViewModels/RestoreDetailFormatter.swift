@@ -19,6 +19,8 @@ struct LastRestoreDetail: Equatable, Sendable {
     /// "X of Y windows" for the parent line; nil for a monitors-only result.
     let restoredCount: Int?
     let totalCount: Int?
+    /// The desk's name from the log (nil for logs written before desks were named); shown as one line.
+    var deskName: String?
 }
 
 enum RestoreDetailFormatter {
@@ -35,7 +37,8 @@ enum RestoreDetailFormatter {
             appLines: Array(lines.prefix(maxAppLines)),
             overflowCount: max(0, lines.count - maxAppLines),
             restoredCount: log.counts.restored,
-            totalCount: log.counts.total
+            totalCount: log.counts.total,
+            deskName: log.deskName.flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 

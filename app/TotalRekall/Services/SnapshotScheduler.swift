@@ -80,17 +80,21 @@ actor SnapshotCoordinator {
     private let liveLayout: @Sendable () -> MonitorLayout
     private var saveObserver: (@Sendable () async -> Void)?
     private let diagnostics: DiagnosticsRecording
+    private let isTrusted: (@Sendable () -> Bool)?
 
     /// - Parameters:
     ///   - gate: shared with DisplayMonitor (closes it) and AutomationController (reopens it).
     ///   - liveLayout: current panel-serial -> origin map (for the docked-set rule).
+    ///   - isTrusted: Accessibility check for desk actions; nil skips it (the capture itself fails untrusted).
     init(
         capturer: SnapshotCapturing,
         gate: SnapshotGate,
         learnedStore: LearnedLayoutStore = LearnedLayoutStore(),
         liveLayout: @escaping @Sendable () -> MonitorLayout,
-        diagnostics: DiagnosticsRecording = DiagnosticsLog.shared
+        diagnostics: DiagnosticsRecording = DiagnosticsLog.shared,
+        isTrusted: (@Sendable () -> Bool)? = nil
     ) {
+        self.isTrusted = isTrusted
         self.diagnostics = diagnostics
         self.capturer = capturer
         self.gate = gate
@@ -98,7 +102,8 @@ actor SnapshotCoordinator {
         self.liveLayout = liveLayout
     }
 
-    var learnedLayout: MonitorLayout { get async { await learnedStore.layoutForSwapCheck } }
+    /// How the live monitor set relates to the learned desks, with the matching desk's own layout.
+    func deskLookup(live: MonitorLayout) async -> DeskLookup { await learnedStore.lookup(live: live) }
 
     /// Called after every snapshot that was written to disk (scheduled or manual), e.g. to refresh
     /// the menu's Restore Now availability.
@@ -149,8 +154,8 @@ actor SnapshotCoordinator {
             recordNotTaken(reason: reason, code: "gate-closed", refusal: refusal, epoch: gate.epoch)
             return .refused(refusal)
         }
-        let learned = await learnedStore.layoutForSwapCheck
-        if let refusal = SnapshotPolicy.dockedSetRefusal(learned: learned, live: liveLayout()) {
+        let lookup = await learnedStore.lookup(live: liveLayout())
+        if let refusal = SnapshotPolicy.dockedSetRefusal(lookup: lookup) {
             recordNotTaken(reason: reason, code: "docked-set-absent", refusal: refusal, epoch: token.epoch)
             return .refused(refusal)
         }
@@ -271,3 +276,61 @@ private extension SnapshotRefusal {
 }
 
 extension SnapshotCoordinator: ManualSnapshotSaving {}
+
+// MARK: - Desks (named desks)
+
+extension SnapshotCoordinator: DeskManaging {
+    func registerNewDesk(live: MonitorLayout) async -> NewDeskEvent? {
+        guard DeskKey.hasExternalPanel(live), let key = DeskKey.make(for: live) else { return nil }
+        let registration = await learnedStore.registerIfNeeded(key)
+        return registration.isNew ? NewDeskEvent(key: key, name: registration.desk.name) : nil
+    }
+
+    func deskSummaries() async -> [DeskSummary] {
+        let live = liveLayout()
+        let currentKey = DeskKey.hasExternalPanel(live) ? DeskKey.make(for: live) : nil
+        let desks = await learnedStore.desks
+        let all = desks.map { DeskSummary(id: $0.key, name: $0.name, isCurrent: $0.key == currentKey) }
+        return all.filter(\.isCurrent) + all.filter { !$0.isCurrent }
+    }
+
+    func deskNames() async -> [String] { await learnedStore.allNames }
+
+    func renameDesk(_ key: String, to name: String) async -> DeskRenameResult {
+        await learnedStore.rename(deskKey: key, to: name)
+    }
+
+    func forgetDesk(_ key: String) async -> Bool { await learnedStore.forget(deskKey: key) }
+
+    /// Re-learn plus snapshot now, for the desk captured by the caller. Refused (not queued) while
+    /// untrusted or while the gate is closed. The one closed-gate state it may override is
+    /// `layoutUnverified`: re-learning the layout IS how the user resolves that hold, so the gate is
+    /// reopened at the newest display epoch (a later raw callback still refuses the reopen).
+    func saveDeskArrangement(_ key: String) async -> DeskArrangementResult {
+        if let isTrusted, !isTrusted() { return .refused(SnapshotRefusal.accessibilityMissing.message) }
+        // The gate status is read BEFORE the live layout: a display callback arriving while the layout
+        // is read bumps the epoch past this snapshot and refuses the reopen below.
+        let status = gate.status
+        let live = liveLayout()
+        guard DeskKey.make(for: live) == key else { return .notCurrentDesk }
+        if !status.acceptsSnapshots {
+            guard !status.isOpen, status.holds.isEmpty, status.reason == .layoutUnverified else {
+                return .refused(gate.refusal.message)
+            }
+            // Reopen first: a refused reopen (a newer display callback) must leave the learned layout alone.
+            guard gate.reopen(ifEpoch: status.displayEpoch) else { return .refused(gate.refusal.message) }
+            await learnedStore.relearn(live, deskKey: key)
+        }
+        switch await snapshot(reason: .manual) {
+        case .saved(let count), .savedAfterShrink(let count, _):
+            var fields: [String: DiagnosticsValue] = ["windows": .int(count)]
+            if let name = await learnedStore.name(forDesk: key) { fields["desk_name"] = .string(name) }
+            diagnostics.record(DiagnosticsEvent(.snapshot, "desk-arrangement-saved", fields: fields))
+            return .saved(windowCount: count)
+        case .refused(let refusal): return .refused(refusal.message)
+        case .notSaved(let message): return .refused(message)
+        case .heldForConfirmation: return .failed("unconfirmed shrink on a manual save")
+        case .failed(let message): return .failed(message)
+        }
+    }
+}

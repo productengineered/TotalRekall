@@ -3,7 +3,7 @@ import XCTest
 @testable import TotalRekall
 
 private actor TrailPause: SnapshotPauseControlling {
-    var learnedLayout: MonitorLayout { MonitorLayout(origins: [:]) }
+    func deskLookup(live: MonitorLayout) -> DeskLookup { .newDesk }
     func runScheduledSnapshot() {}
 }
 

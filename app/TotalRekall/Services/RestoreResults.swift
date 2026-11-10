@@ -289,10 +289,14 @@ struct RestoreLog: Codable, Equatable, Sendable {
     let trigger: CycleTrigger?
     /// Ties this log to the diagnostics trail (nil in logs written before cycle IDs were recorded).
     let cycleID: UUID?
+    /// The desk's user-chosen name (named desks), next to `configKey`; nil in logs written before desks were
+    /// named. Additive: old files decode with nil and every other field is unchanged.
+    let deskName: String?
 
     init(results: [RestoreWindowResult], date: Date, configKey: String?,
          capability: SpaceBridgeCapability, layout: MonitorLayout?, monitorFix: FixOutcome? = nil,
-         context: CycleContext? = nil) {
+         context: CycleContext? = nil, deskName: String? = nil) {
+        self.deskName = deskName
         self.trigger = context?.trigger
         self.cycleID = context?.cycleID
         let summary = RestoreSummary(results: results, date: date, monitorFix: monitorFix)

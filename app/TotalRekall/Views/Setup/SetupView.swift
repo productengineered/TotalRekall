@@ -48,6 +48,13 @@ struct SetupView: View {
                     .transition(.opacity)
             }
 
+            if copy.showsDeskField {
+                DeskNameField(model: model.deskModel ?? Self.measurementDeskModel,
+                              fieldID: AXID.Setup.deskNameField, messageID: AXID.Setup.deskMessage)
+                    .padding(.top, 16)
+                    .transition(.opacity)
+            }
+
             // Header and body stay at the top; the button row is pinned to the bottom edge.
             Spacer(minLength: 24)
 
@@ -65,6 +72,11 @@ struct SetupView: View {
         .fixedSize(horizontal: false, vertical: contentHeight == nil)
         .ignoresSafeArea(.container, edges: .top)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: model.state)
+    }
+
+    /// Stands in for the real model when only measuring the docked variant's height.
+    private static var measurementDeskModel: DeskNameModel {
+        DeskNameModel(mode: .setup, initialName: "Desk 1", otherNames: [], onSave: { _ in }, onCancel: {})
     }
 
     private func helperRow(_ helper: String) -> some View {
@@ -104,6 +116,7 @@ struct SetupView: View {
         if prominent {
             // Stays accent-blue when the window is inactive (see AlwaysActiveProminentButtonStyle).
             button.buttonStyle(AlwaysActiveProminentButtonStyle()).keyboardShortcut(.defaultAction)
+                .disabled(copy.primary == .saveDesk && model.deskModel?.canSave == false)
         } else {
             button.buttonStyle(.glass)
         }
@@ -124,7 +137,7 @@ struct SetupView: View {
             }
             .buttonStyle(.glass)
             .keyboardShortcut(.cancelAction)
-            .accessibilityHint("Closes this window. Total Rekall can't move windows until access is on.")
+            .accessibilityHint("Closes this window. TotalRekall can't move windows until access is on.")
             .accessibilityIdentifier(AXID.Setup.skipButton)
         }
     }
@@ -133,7 +146,9 @@ struct SetupView: View {
         switch primary {
         case .openSettings: model.openSystemSettings
         case .relaunch: model.relaunch
-        case .done: model.done
+        case .done: model.state == .namingDesk(.undocked) ? model.finishUndockedStep : model.done
+        case .continueSetup: { Task { await model.continueToDeskStep() } }
+        case .saveDesk: { model.deskModel?.save() }
         }
     }
 }
@@ -163,6 +178,10 @@ private struct FixedHeightSetupPreview: View {
 #Preview("Waiting · dark") { FixedHeightSetupPreview(.waitingForGrant).preferredColorScheme(.dark) }
 #Preview("Relaunch · light") { FixedHeightSetupPreview(.relaunchSuggested) }
 #Preview("Relaunch · dark") { FixedHeightSetupPreview(.relaunchSuggested).preferredColorScheme(.dark) }
-#Preview("Done · light") { FixedHeightSetupPreview(.granted) }
-#Preview("Done · dark") { FixedHeightSetupPreview(.granted).preferredColorScheme(.dark) }
+#Preview("Continue · light") { FixedHeightSetupPreview(.granted) }
+#Preview("Continue · dark") { FixedHeightSetupPreview(.granted).preferredColorScheme(.dark) }
+#Preview("Desk docked · light") { FixedHeightSetupPreview(.namingDesk(.docked)) }
+#Preview("Desk docked · dark") { FixedHeightSetupPreview(.namingDesk(.docked)).preferredColorScheme(.dark) }
+#Preview("Desk undocked · light") { FixedHeightSetupPreview(.namingDesk(.undocked)) }
+#Preview("Desk undocked · dark") { FixedHeightSetupPreview(.namingDesk(.undocked)).preferredColorScheme(.dark) }
 #endif

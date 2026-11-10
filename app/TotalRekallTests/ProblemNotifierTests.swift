@@ -105,7 +105,7 @@ final class ProblemNotifierTests: XCTestCase {
         let partial = RestoreOutcome.restored(ProblemNotificationPolicyTests.summary(
             Array(repeating: .moved, count: 22) + [.failed, .failed]))
         let content = ProblemNotificationPolicy.content(for: partial)
-        XCTAssertEqual(content.title, "Total Rekall")
+        XCTAssertEqual(content.title, "TotalRekall")
         XCTAssertEqual(content.body, "Partly restored. 22 of 24 windows.")
 
         let nothing = RestoreOutcome.restored(ProblemNotificationPolicyTests.summary([.failed, .failed]))

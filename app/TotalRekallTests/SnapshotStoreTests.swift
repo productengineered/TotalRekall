@@ -86,7 +86,7 @@ final class SnapshotStoreTests: XCTestCase {
         XCTAssertTrue(leftovers.isEmpty)
     }
 
-    /// Bug 65 (FR-19): an under-half shrink is held on first sight and committed only by a second
+    /// Shrink rule (FR-19): an under-half shrink is held on first sight and committed only by a second
     /// agreeing capture one interval later; then the prior file is kept as last-good.
     func testUnderHalfShrinkIsHeldThenCommittedOnConfirmationKeepingPriorAsLastGood() async throws {
         let store = SnapshotStore(directory: dir)
@@ -198,7 +198,7 @@ final class SnapshotStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: store.snapshotURL.path))
     }
 
-    // MARK: - Shrink confirmation (Bug 65)
+    // MARK: - Shrink confirmation
 
     /// The incident's sequence 42 -> 1 -> 1 -> 1 inside one interval: the restore source stays 42.
     func testRepeatedDropWithinOneIntervalNeverReplacesTheRestoreSource() async throws {
@@ -264,7 +264,7 @@ final class SnapshotStoreTests: XCTestCase {
     }
 }
 
-// MARK: - Pending shrink across a hold (Bug 65 review advisory 3)
+// MARK: - Pending shrink across a hold (review advisory 3)
 
 extension SnapshotStoreTests {
     /// A shrink seen before a hold is never confirmed by a capture after it: the hold moves the gate
