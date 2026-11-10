@@ -32,7 +32,7 @@ You'll need **macOS 26 (Tahoe) or later** and a Mac you connect to external moni
 
 ### Install from a disk image
 
-If you have a `TotalRekall-<version>.dmg`:
+Download `TotalRekall-<version>.dmg` from the [latest release](https://github.com/productengineered/TotalRekall/releases/latest), then:
 
 1. Open it and drag **TotalRekall** into **Applications**.
 2. Open **TotalRekall**.

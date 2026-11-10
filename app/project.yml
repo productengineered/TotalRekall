@@ -36,7 +36,7 @@ targets:
         # DEVELOPMENT_TEAM comes from the untracked app/Config/Local.xcconfig (see Local.xcconfig.example)
         # or the DEVELOPMENT_TEAM env var (scripts/install.sh passes it through). Intentionally not set here.
         # Unsandboxed: entitlements file intentionally has no com.apple.security.app-sandbox.
-        MARKETING_VERSION: "1.0"
+        MARKETING_VERSION: "0.1.1"
         PRODUCT_BUNDLE_IDENTIFIER: com.productengineered.TotalRekall
         SWIFT_EMIT_LOC_STRINGS: true
       configs:
@@ -46,6 +46,13 @@ targets:
           # Hardened runtime on, and no injected get-task-allow: the app holds Accessibility.
           ENABLE_HARDENED_RUNTIME: YES
           CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+          # Strip the shipped binary so it carries no linker debug-map entries (local build paths).
+          # Symbols stay available in the dSYM.
+          DEPLOYMENT_POSTPROCESSING: YES
+          STRIP_INSTALLED_PRODUCT: YES
+          STRIP_STYLE: all
+          COPY_PHASE_STRIP: YES
+          DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
     preBuildScripts:
       - name: SwiftLint
         basedOnDependencyAnalysis: false
