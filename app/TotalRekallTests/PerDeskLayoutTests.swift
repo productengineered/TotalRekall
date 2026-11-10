@@ -134,8 +134,9 @@ final class PerDeskLayoutTests: XCTestCase {
                                         liveLayout: { docked })
         let result = await coord.saveManually()
         XCTAssertEqual(result, .saved(windowCount: 3))
-        let deskKeys = await store.desks.map(\.key)
-        XCTAssertEqual(deskKeys, [DeskKey.make(for: docked)].compactMap { $0 },
+        let dockedKey = try XCTUnwrap(DeskKey.make(for: docked))
+        let desks = await store.desks
+        XCTAssertEqual(desks.map(\.key), [dockedKey],
                        "only the docked desk is registered; the built-in-only layout is kept but is not a desk")
     }
 
