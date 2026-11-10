@@ -124,4 +124,6 @@ defaults delete com.productengineered.TotalRekall
 
 ## License
 
-A license has not yet been selected.
+TotalRekall is free software, released under the [GNU General Public License v3.0](LICENSE). You may use, study, change and share it. If you share a changed version, you must also share its source code under the same license.
+
+Copyright © 2026 productengineered.
